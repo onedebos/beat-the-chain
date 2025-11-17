@@ -76,7 +76,7 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                   </li>
                   <li className="flex items-center">
                     <i className="fa fa-trophy h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                    <span><span className="font-bold text-dark-main">Get a Rank:</span> You MUST have <span className="font-bold text-dark-main">90%+ accuracy</span> to earn a rank.</span>
+                    <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed. Faster typing = better blockchain rank!</span>
                   </li>
                 </ol>
               </div>
@@ -84,17 +84,19 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
               <div className="mt-6 rounded-lg border border-dark-dim/30 bg-dark-bg/50 p-4 text-sm font-mono">
                 <div className="text-dark-main">
                   <div className="mb-1">
-                    <span className="font-bold text-dark-highlight">You MUST have 90%+ accuracy</span> to earn a rank.
+                    <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
                   </div>
                   <div className="text-dark-dim">
-                    Complete the typing game to earn any of the ranks below.
+                    Your typing speed determines which blockchain you match. Can you beat Unichain's 200ms?
                   </div>
                 </div>
                 <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
-                  <li><span className="font-bold text-dark-main">Pro:</span> &lt; 150ms / letter (Insane!)</li>
-                  <li><span className="font-bold text-dark-main">Sub-blocks:</span> 150-200ms / letter (You proved your speed!)</li>
-                  <li><span className="font-bold text-dark-main">Etherlink:</span> 201-500ms / letter (Solid speed)</li>
-                  <li><span className="font-bold text-dark-main">Beginner:</span> &gt; 500ms / letter (or &lt; 90% acc)</li>
+                  <li><span className="font-bold text-dark-main">Unichain/Base/Etherlink:</span> 150-200ms / letter (Lightning fast!)</li>
+                  <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms / letter (Super fast!)</li>
+                  <li><span className="font-bold text-dark-main">ETH Layer2s:</span> 401-1000ms / letter (Fast!)</li>
+                  <li><span className="font-bold text-dark-main">Polygon:</span> 1001-2000ms / letter (Quick!)</li>
+                  <li><span className="font-bold text-dark-main">Ethereum Mainnet:</span> 2001-12000ms / letter (Standard speed)</li>
+                  <li><span className="font-bold text-dark-main">Bitcoin:</span> &gt; 12000ms / letter (Slow and steady)</li>
                 </ul>
               </div>
 
@@ -116,7 +118,7 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
               transition={{ duration: 0.3 }}
               onSubmit={handleSubmit}
             >
-              <h1 className="text-3xl font-bold text-dark-highlight font-mono text-center">
+              <h1 className="text-3xl font-bold text-dark-highlight font-nfs text-center">
                 What's your name?
               </h1>
               <p className="text-center text-dark-dim mt-2 font-mono">

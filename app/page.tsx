@@ -14,7 +14,7 @@ import OnboardingOverlay from "../components/OnboardingOverlay";
 const SUB_BLOCK_SPEED_MS = 200;
 const GAME_MODES = [15, 30, 60] as const; // Word counts
 type GameMode = typeof GAME_MODES[number];
-const ACCURACY_THRESHOLD = 90; // Minimum accuracy required to rank
+// Removed accuracy threshold - all players get ranks based on speed
 
 const DEFAULT_RESULTS = {
   score: "0",
@@ -354,14 +354,14 @@ export default function Home() {
     const msPerLetter = durationMs / lettersCount;
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
-    // Rank is only awarded for high accuracy
-    let rank = "Beginner";
-    const highAccuracy = accuracy >= ACCURACY_THRESHOLD;
-    if (highAccuracy) {
-      if (msPerLetter <= SUB_BLOCK_SPEED_MS) rank = "Sub-blocks";
-      else if (msPerLetter <= 350) rank = "Pro";
-      else if (msPerLetter <= 500) rank = "Ether Link";
-    }
+    // Rank based on typing speed (ms per letter)
+    let rank = "Bitcoin";
+    if (msPerLetter <= 200) rank = "Unichain/Base/Etherlink";
+    else if (msPerLetter <= 400) rank = "Solana";
+    else if (msPerLetter <= 1000) rank = "ETH Layer2s";
+    else if (msPerLetter <= 2000) rank = "Polygon";
+    else if (msPerLetter <= 12000) rank = "Ethereum Mainnet";
+    else rank = "Bitcoin";
 
     const resultsData = {
       score: finalScore.toFixed(2),
@@ -1099,8 +1099,8 @@ export default function Home() {
                         : "text-dark-dim";
                     return (
                       <div key={entry.id} className={`flex justify-between text-xl ${textColor}`}>
-                        <span>{idx + 1}. {entry.player_name}</span>
-                        <span>{entry.score.toFixed(2)}</span>
+                        <span className="truncate mr-2">{idx + 1}. {entry.player_name}</span>
+                        <span className="flex-shrink-0">{entry.score.toFixed(2)}</span>
                       </div>
                     );
                   })
