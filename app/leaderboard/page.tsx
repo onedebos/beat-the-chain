@@ -69,7 +69,7 @@ export default function LeaderboardPage() {
                       : "text-dark-dim hover:text-dark-main"
                   }`}
                 >
-                  {mode} word{mode !== 1 ? 's' : ''}
+                  {mode} words
                 </button>
               ))}
             </div>
