@@ -46,12 +46,15 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
               exit={{ x: 20, opacity: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <h1 className="text-4xl font-bold text-dark-highlight font-mono text-center">
-                Beat the Chain
+              <h1 className="text-4xl font-bold text-dark-highlight font-nfs text-center">
+                Proof of Speed
               </h1>
+              
+              <h2 className="text-xl font-bold font-sedgwick text-center mt-4">
+                Beat the speed of Etherlink's Sub-blocks
+              </h2>
 
               <div className="mt-6 text-dark-main font-mono">
-                <h2 className="text-xl font-bold">Beat the speed of Etherlink's Sub-blocks</h2>
                 <p className="mt-2 text-dark-dim">
                   Etherlink's new <span className="font-bold text-dark-main">sub-blocks</span> are so fast, they can lock in transactions in <span className="font-bold text-dark-main">&lt;=200 milliseconds</span>.
                 </p>
@@ -89,7 +92,7 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                 </div>
                 <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
                   <li><span className="font-bold text-dark-main">Pro:</span> &lt; 150ms / letter (Insane!)</li>
-                  <li><span className="font-bold text-dark-main">Sub-blocks:</span> 150-200ms / letter (You beat the chain!)</li>
+                  <li><span className="font-bold text-dark-main">Sub-blocks:</span> 150-200ms / letter (You proved your speed!)</li>
                   <li><span className="font-bold text-dark-main">Etherlink:</span> 201-500ms / letter (Solid speed)</li>
                   <li><span className="font-bold text-dark-main">Beginner:</span> &gt; 500ms / letter (or &lt; 90% acc)</li>
                 </ul>

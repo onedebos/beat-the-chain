@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "font-awesome/css/font-awesome.css";
 
+@font-face {
+  font-family: 'NFS';
+  src: url('/NFS_by_JLTV.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   /* Colors */
   --color-dark-bg: #323437;
@@ -14,6 +22,9 @@
   /* Fonts */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui;
   --font-mono: var(--font-roboto-mono), ui-monospace, monospace;
+  --font-nfs: 'NFS', ui-sans-serif, system-ui;
+  --font-racing: var(--font-racing-sans-one), ui-sans-serif, system-ui;
+  --font-sedgwick: var(--font-sedgwick-ave-display), ui-sans-serif, system-ui;
 
   /* Animations */
   @keyframes blink {
@@ -35,5 +46,16 @@
   /* Style for <kbd> tags */
   kbd {
     @apply bg-dark-kbd rounded px-1.5 py-0.5 font-mono text-xs text-dark-dim border-b-2 border-dark-kbd-shadow;
+  }
+}
+
+@layer utilities {
+  /* Direct font utilities to ensure fonts load */
+  .font-racing {
+    font-family: var(--font-racing-sans-one), ui-sans-serif, system-ui;
+  }
+  
+  .font-sedgwick {
+    font-family: var(--font-sedgwick-ave-display), ui-sans-serif, system-ui;
   }
 }

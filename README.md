@@ -1,4 +1,4 @@
-# Beat the Chain
+# Proof of Speed
 
 A typing game inspired by [monkeytype](https://monkeytype.com) that gives users a visual representation of sub-block confirmations on [Etherlink](https://etherlink.com).
 
@@ -6,7 +6,7 @@ A typing game inspired by [monkeytype](https://monkeytype.com) that gives users 
 
 ## What It Is
 
-**Beat the Chain** is an interactive typing test that challenges players to type faster than Etherlink's sub-block confirmation speed. As you type, green blocks appear on screen at the same pace as Etherlink's sub-block confirmations (200ms per letter), creating a visual representation of how fast sub-blocks are being created on the network.
+**Proof of Speed** is an interactive typing test that challenges players to type faster than Etherlink's sub-block confirmation speed. As you type, green blocks appear on screen at the same pace as Etherlink's sub-block confirmations (200ms per letter), creating a visual representation of how fast sub-blocks are being created on the network.
 
 Etherlink's new sub-block latency feature gives developers super-fast confirmation — around 10–20 milliseconds — so they instantly know their transaction will make it into the next block.
 
@@ -29,7 +29,7 @@ It's like being told "you're next in line" at lightning speed — no bidding, no
 ### Ranks
 
 - **Pro:** < 150ms / letter (Insane!)
-- **Sub-blocks:** 150-200ms / letter (You beat the chain!)
+- **Sub-blocks:** 150-200ms / letter (You proved your speed!)
 - **Etherlink:** 201-500ms / letter (Solid speed)
 - **Beginner:** > 500ms / letter (or < 90% acc)
 

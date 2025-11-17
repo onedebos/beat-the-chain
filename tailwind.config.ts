@@ -22,6 +22,9 @@ const config: Config = {
       fontFamily: {
         sans: ["var(--font-inter)", "ui-sans-serif", "system-ui"],
         mono: ["var(--font-roboto-mono)", "ui-monospace", "monospace"],
+        racing: ["var(--font-racing-sans-one)", "ui-sans-serif", "system-ui"],
+        nfs: ["var(--font-nfs)", "ui-sans-serif", "system-ui"],
+        sedgwick: ["var(--font-sedgwick-ave-display)", "ui-sans-serif", "system-ui"],
       },
       // 3. Add blink animation
       keyframes: {

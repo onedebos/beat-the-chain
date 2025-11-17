@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Roboto_Mono } from "next/font/google";
+import { Inter, Roboto_Mono, Racing_Sans_One, Sedgwick_Ave_Display } from "next/font/google";
 import "./globals.css";
 
 // Setup font variables
@@ -11,9 +11,19 @@ const robotoMono = Roboto_Mono({
   subsets: ["latin"], 
   variable: '--font-roboto-mono' 
 });
+const racingSansOne = Racing_Sans_One({ 
+  subsets: ["latin"], 
+  weight: "400",
+  variable: '--font-racing-sans-one' 
+});
+const sedgwickAveDisplay = Sedgwick_Ave_Display({ 
+  subsets: ["latin"], 
+  weight: "400",
+  variable: '--font-sedgwick-ave-display' 
+});
 
 export const metadata: Metadata = {
-  title: "Etherlink - Beat the Chain",
+  title: "Etherlink - Proof of Speed",
   description: "Beat Etherlink sub-block times with this typing speed test.",
   icons: {
     icon: "/icon.svg",
@@ -32,7 +42,7 @@ export default function RootLayout({
       */}
       <head />
       {/* Apply the font variables to the body */}
-      <body className={`${inter.variable} ${robotoMono.variable} font-sans`}>
+      <body className={`${inter.variable} ${robotoMono.variable} ${racingSansOne.variable} ${sedgwickAveDisplay.variable} font-sans`}>
         {children}
       </body>
     </html>

@@ -1,6 +1,6 @@
 # Supabase Setup Instructions
 
-Follow these steps to set up Supabase for your Beat the Chain game:
+Follow these steps to set up Supabase for your Proof of Speed game:
 
 ## 1. Create a Supabase Project
 

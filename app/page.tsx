@@ -30,7 +30,7 @@ const FALLBACK_SENTENCES = [
   "ten word sentence this is exactly 35",
   "another fast one for you to type quick",
   "etherlink sub block latency is so fast",
-  "beat the chain with this one simple test",
+  "proof of speed with this one simple test",
   "pro gamer speed could win this one game",
 ];
 
@@ -210,6 +210,7 @@ export default function Home() {
   const appBodyRef = useRef<HTMLDivElement>(null);
   const wordsRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
+  const subBlockBarRef = useRef<HTMLDivElement>(null);
   const resultsScreenRef = useRef<HTMLDivElement>(null);
 
   const stateRef = useRef<GameState>({
@@ -291,9 +292,15 @@ export default function Home() {
     setTestFinished(false);
     setPacerResetKey(prev => prev + 1); // Force pacer squares to reset
     populateWords();
+    
+    // Reset pacer bar for 60 words mode
+    if (subBlockBarRef.current && gameMode === 60) {
+      subBlockBarRef.current.style.transition = 'none';
+      subBlockBarRef.current.style.width = '0%';
+    }
 
     requestAnimationFrame(() => moveCursor(0));
-  }, [moveCursor, populateWords]);
+  }, [moveCursor, populateWords, gameMode]);
 
   const startTest = useCallback(() => {
     if (stateRef.current.testActive) return;
@@ -301,7 +308,21 @@ export default function Home() {
     stateRef.current.startTime = performance.now();
     setTestStarted(true);
     setTestFinished(false);
-  }, []); // Note: This function has no dependencies, it only reads from refs
+
+    // Animate pacer bar for 60 words mode
+    if (subBlockBarRef.current && gameMode === 60) {
+      const totalLetters = stateRef.current.totalLetters;
+      const subBlockDuration = (totalLetters * SUB_BLOCK_SPEED_MS) / 1000;
+      
+      // Apply dynamic duration and trigger animation
+      subBlockBarRef.current.style.transition = `width ${subBlockDuration}s linear`;
+      
+      // We must force a reflow for the new duration to apply before changing width
+      void subBlockBarRef.current.offsetWidth; 
+      
+      subBlockBarRef.current.style.width = '100%';
+    }
+  }, [gameMode]); // Note: This function depends on gameMode
 
   const endGame = useCallback(() => {
     if (!stateRef.current.testActive) return;
@@ -555,7 +576,7 @@ export default function Home() {
   }, [initGame]);
 
   const handleShare = useCallback(async (platform?: "twitter" | "facebook" | "linkedin") => {
-    const shareText = `I scored ${results.score} on Beat the Chain! ${results.lps} letters per second with ${results.accuracy} accuracy. Can you beat Etherlink's sub-blocks?`;
+    const shareText = `I scored ${results.score} on Proof of Speed! ${results.lps} letters per second with ${results.accuracy} accuracy. Can you beat Etherlink's sub-blocks?`;
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     
     // Capture screenshot of results screen
@@ -628,7 +649,7 @@ export default function Home() {
       if (navigator.share && screenshotFile) {
         try {
           await navigator.share({
-            title: "Beat the Chain - Typing Test Results",
+            title: "Proof of Speed - Typing Test Results",
             text: shareText,
             url: shareUrl,
             files: [screenshotFile],
@@ -638,7 +659,7 @@ export default function Home() {
           if (err instanceof Error && err.name !== "AbortError") {
             try {
               await navigator.share({
-                title: "Beat the Chain - Typing Test Results",
+                title: "Proof of Speed - Typing Test Results",
                 text: shareText,
                 url: shareUrl,
               });
@@ -653,7 +674,7 @@ export default function Home() {
         // Fallback: text-only share if screenshot failed
         try {
           await navigator.share({
-            title: "Beat the Chain - Typing Test Results",
+            title: "Proof of Speed - Typing Test Results",
             text: shareText,
             url: shareUrl,
           });
@@ -721,9 +742,9 @@ export default function Home() {
       </AnimatePresence>
 
       {bannerVisible && (
-        <div className="bg-gradient-to-r from-dark-highlight via-green-400 to-dark-highlight flex items-center justify-center px-4 py-2 text-sm text-black">
-          <span>
-            Are you faster than{" "}
+        <div className="bg-gradient-to-r from-dark-highlight via-green-400 to-dark-highlight flex items-center justify-center px-4 py-2 text-sm text-gray-900">
+          <span className="font-sedgwick">
+            Can you beat{" "}
             <a
               href="https://etherlink.com"
               target="_blank"
@@ -732,8 +753,10 @@ export default function Home() {
             >
               Etherlink Sub-blocks
             </a>
-            ? Go Ahead!{" "}
-            <WavyTextComponent text="Beat the Chain!" replay={wavyReplay} className="font-bold" />
+            ?{" "}
+            <span className="font-bold">
+              <WavyTextComponent text="Prove your speed." replay={wavyReplay} />
+            </span>
           </span>
         </div>
       )}
@@ -742,8 +765,12 @@ export default function Home() {
         <header className="p-6">
           <nav className="flex items-center justify-between text-xl">
             <div className="flex items-center justify-center space-x-6">
-              <div className="flex flex-col items-start space-y-1 text-dark-highlight">
+              <div className="flex items-center space-x-3 text-dark-highlight">
                 <img src="/etherlink-logo.svg" alt="Etherlink" className="h-12 w-auto" />
+                <div className="flex flex-col items-end">
+                  <span className="font-nfs text-2xl">Proof of Speed</span>
+                  <span className="font-sedgwick text-xs text-white uppercase">Beat Etherlink Sub-blocks</span>
+                </div>
               </div>
               <div className="flex space-x-4">
                 <button className="text-dark-dim hover:text-dark-highlight transition-colors" title="Test">
@@ -961,17 +988,33 @@ export default function Home() {
               
               <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto text-2xl leading-[2.5rem] opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100" />
               
-              <PacerSquares 
-                key={pacerResetKey}
-                totalLetters={totalLetters}
-                testActive={testStarted}
-                speedMs={SUB_BLOCK_SPEED_MS}
-              />
-              
-              {testStarted && (
-                <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
-                  Creating Sub-blocks in &lt;200ms on Etherlink.......
-                </div>
+              {gameMode === 60 ? (
+                <>
+                  <div 
+                    id="sub-block-bar" 
+                    ref={subBlockBarRef}
+                    className="absolute bottom-[-20px] left-0 h-[2px] w-0 bg-dark-highlight opacity-50"
+                  />
+                  {testStarted && (
+                    <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
+                      Creating Sub-blocks in &lt;200ms on Etherlink.......
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <PacerSquares 
+                    key={pacerResetKey}
+                    totalLetters={totalLetters}
+                    testActive={testStarted}
+                    speedMs={SUB_BLOCK_SPEED_MS}
+                  />
+                  {testStarted && (
+                    <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
+                      Creating Sub-blocks in &lt;200ms on Etherlink.......
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

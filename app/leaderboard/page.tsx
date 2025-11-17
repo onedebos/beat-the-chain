@@ -49,13 +49,13 @@ export default function LeaderboardPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   return (
-    <div className="flex min-h-screen flex-col overflow-hidden bg-dark-bg text-dark-main font-sans">
+    <div className="flex h-screen flex-col bg-dark-bg text-dark-main font-sans overflow-y-auto">
       <header className="p-6">
         <nav className="flex items-center justify-between text-xl">
           <div className="flex items-center space-x-3">
             <Link href="/" className="flex items-center space-x-2 text-dark-highlight">
               <i className="fa fa-keyboard-o h-6 w-6" />
-              <span className="text-lg font-semibold">Beat the Chain</span>
+              <span className="text-lg font-semibold font-nfs">Proof of Speed</span>
             </Link>
             <span className="text-dark-dim text-sm">/ leaderboard</span>
           </div>
@@ -73,7 +73,7 @@ export default function LeaderboardPage() {
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <i className="fa fa-star h-6 w-6 text-dark-highlight" />
-              <h1 className="text-2xl font-semibold">leaderboard</h1>
+              <h1 className="text-2xl font-semibold font-sedgwick">leaderboard</h1>
             </div>
             {/* Game Mode Selector */}
             <div className="flex items-center space-x-2 rounded-lg bg-dark-kbd px-2 py-1 text-sm font-mono">
