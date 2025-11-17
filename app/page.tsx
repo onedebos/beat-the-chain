@@ -130,6 +130,60 @@ const WavyTextComponent = ({
   );
 };
 
+// Pacer Squares Component
+interface PacerSquaresProps {
+  totalLetters: number;
+  testActive: boolean;
+  speedMs: number;
+}
+
+const PacerSquares = ({ totalLetters, testActive, speedMs }: PacerSquaresProps) => {
+  const [visibleSquares, setVisibleSquares] = useState<number[]>([]);
+  
+  useEffect(() => {
+    if (!testActive) {
+      setVisibleSquares([]);
+      return;
+    }
+    
+    // Reset and start showing squares one by one
+    setVisibleSquares([]);
+    
+    const timeouts: NodeJS.Timeout[] = [];
+    for (let i = 0; i < totalLetters; i++) {
+      const timeout = setTimeout(() => {
+        setVisibleSquares(prev => [...prev, i]);
+      }, i * speedMs);
+      timeouts.push(timeout);
+    }
+    
+    return () => {
+      timeouts.forEach(timeout => clearTimeout(timeout));
+    };
+  }, [testActive, totalLetters, speedMs]);
+  
+  return (
+    <div className="absolute bottom-[-20px] left-0 right-0 flex flex-wrap gap-1 justify-start items-center">
+      <AnimatePresence initial={false}>
+        {visibleSquares.map((index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+            style={{
+              width: 20,
+              height: 20,
+              backgroundColor: "#38ff9c",
+              opacity: 0.5,
+            }}
+          />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // --- COMPONENT ---
 export default function Home() {
   const [bannerVisible, setBannerVisible] = useState(true);
@@ -150,11 +204,12 @@ export default function Home() {
   const [animatedNumber, setAnimatedNumber] = useState<number | null>(null);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [wavyReplay, setWavyReplay] = useState(false);
+  const [totalLetters, setTotalLetters] = useState(0);
+  const [pacerResetKey, setPacerResetKey] = useState(0);
 
   const appBodyRef = useRef<HTMLDivElement>(null);
   const wordsRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
-  const subBlockBarRef = useRef<HTMLDivElement>(null);
   const resultsScreenRef = useRef<HTMLDivElement>(null);
 
   const stateRef = useRef<GameState>({
@@ -221,6 +276,7 @@ export default function Home() {
 
     stateRef.current.letterElements = letters;
     stateRef.current.totalLetters = letters.length;
+    setTotalLetters(letters.length);
     stateRef.current.currentIndex = 0;
   }, [gameMode]);
 
@@ -233,13 +289,8 @@ export default function Home() {
     setResults({ ...DEFAULT_RESULTS });
     setTestStarted(false);
     setTestFinished(false);
+    setPacerResetKey(prev => prev + 1); // Force pacer squares to reset
     populateWords();
-    
-    // MODIFIED: Reset pacer bar logic added
-    if (subBlockBarRef.current) {
-      subBlockBarRef.current.style.transition = 'none';
-      subBlockBarRef.current.style.width = '0%';
-    }
 
     requestAnimationFrame(() => moveCursor(0));
   }, [moveCursor, populateWords]);
@@ -250,20 +301,6 @@ export default function Home() {
     stateRef.current.startTime = performance.now();
     setTestStarted(true);
     setTestFinished(false);
-
-    // MODIFIED: Pacer bar animation logic added
-    if (subBlockBarRef.current) {
-        const totalLetters = stateRef.current.totalLetters;
-        const subBlockDuration = (totalLetters * SUB_BLOCK_SPEED_MS) / 1000;
-        
-        // Apply dynamic duration and trigger animation
-        subBlockBarRef.current.style.transition = `width ${subBlockDuration}s linear`;
-        
-        // We must force a reflow for the new duration to apply before changing width
-        void subBlockBarRef.current.offsetWidth; 
-        
-        subBlockBarRef.current.style.width = '100%';
-    }
   }, []); // Note: This function has no dependencies, it only reads from refs
 
   const endGame = useCallback(() => {
@@ -924,11 +961,18 @@ export default function Home() {
               
               <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto text-2xl leading-[2.5rem] opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100" />
               
-              <div 
-                id="sub-block-bar" 
-                ref={subBlockBarRef}
-                className="absolute bottom-[-4px] left-0 h-[2px] w-0 bg-dark-highlight opacity-50"
+              <PacerSquares 
+                key={pacerResetKey}
+                totalLetters={totalLetters}
+                testActive={testStarted}
+                speedMs={SUB_BLOCK_SPEED_MS}
               />
+              
+              {testStarted && (
+                <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
+                  Creating Sub-blocks in &lt;200ms on Etherlink.......
+                </div>
+              )}
             </div>
           </div>
 

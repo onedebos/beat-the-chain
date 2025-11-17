@@ -65,7 +65,7 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                 <ol className="list-none space-y-3 mt-3 text-dark-dim">
                   <li className="flex items-center">
                     <i className="fa fa-tachometer h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                    <span><span className="font-bold text-dark-main">Race the Pacer:</span> Type the full text before the green bar finishes.</span>
+                    <span><span className="font-bold text-dark-main">Race the Pacer:</span> Type the full text before the green blocks are completely formed.</span>
                   </li>
                   <li className="flex items-center">
                     <i className="fa fa-bullseye h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
