@@ -169,12 +169,26 @@ const PacerSquares = ({ totalLetters, testActive, speedMs }: PacerSquaresProps) 
           <motion.div
             key={index}
             initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1,
+              backgroundColor: testActive 
+                ? ["#38ff9c", "#0d63f8", "#ff0088", "#38ff9c"]
+                : "#38ff9c"
+            }}
             exit={{ opacity: 0, scale: 0 }}
+            transition={{
+              backgroundColor: {
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear",
+              },
+              opacity: { duration: 0.4 },
+              scale: { type: "spring", duration: 0.4, bounce: 0.5 }
+            }}
             style={{
               width: 20,
               height: 20,
-              backgroundColor: "#38ff9c",
               opacity: 0.5,
             }}
           />
