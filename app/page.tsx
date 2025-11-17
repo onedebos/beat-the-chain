@@ -912,7 +912,7 @@ export default function Home() {
           
           <div
             id="test-area"
-            className="relative flex h-[168px] w-full max-w-5xl items-center justify-center group-[.test-finished]:hidden"
+            className="relative flex min-h-[200px] w-full max-w-5xl items-center justify-center group-[.test-finished]:hidden"
             onClick={() => appBodyRef.current?.focus()}
           >
             <div id="focus-message" className="absolute z-10 cursor-pointer text-lg font-mono group-[.test-started]:hidden">
@@ -922,7 +922,7 @@ export default function Home() {
             <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono">
               <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block" />
               
-              <div id="words" ref={wordsRef} className="max-w-5xl h-[10.5rem] flex flex-wrap content-start overflow-hidden text-2xl leading-[2.5rem] opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100" />
+              <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto text-2xl leading-[2.5rem] opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100" />
               
               <div 
                 id="sub-block-bar" 
