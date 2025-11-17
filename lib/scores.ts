@@ -268,3 +268,75 @@ export async function getUserBestScore(
   }
 }
 
+/**
+ * Clear all localStorage data for a player
+ */
+export function clearPlayerData(playerName: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const gameModes = [15, 30, 60];
+    
+    // Clear all best scores and record IDs for all game modes
+    gameModes.forEach((mode) => {
+      localStorage.removeItem(`best_score_${playerName}_${mode}`);
+      localStorage.removeItem(`record_id_${playerName}_${mode}`);
+    });
+    
+    // Clear the stored player name
+    localStorage.removeItem("player_name");
+  } catch {
+    // Silently fail if localStorage is not available
+  }
+}
+
+/**
+ * Get stored player name from localStorage
+ */
+export function getStoredPlayerName(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return localStorage.getItem("player_name");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store player name in localStorage
+ */
+export function setStoredPlayerName(playerName: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem("player_name", playerName);
+  } catch {
+    // Silently fail if localStorage is not available
+  }
+}
+
+/**
+ * Restore user data from database for a given player name
+ * Fetches best scores for all game modes and updates localStorage
+ */
+export async function restoreUserDataFromDB(playerName: string): Promise<boolean> {
+  try {
+    const gameModes = [15, 30, 60];
+    let hasData = false;
+
+    // Fetch best score for each game mode
+    for (const mode of gameModes) {
+      const result = await getUserBestScore(playerName, mode);
+      if (result.data) {
+        // Update localStorage with the fetched data
+        setLocalBestScore(playerName, mode, result.data.score);
+        setLocalRecordId(playerName, mode, result.data.id);
+        hasData = true;
+      }
+    }
+
+    return hasData;
+  } catch (err) {
+    console.error("Error restoring user data from database:", err);
+    return false;
+  }
+}
+

@@ -6,7 +6,7 @@ import Link from "next/link";
 import html2canvas from "html2canvas";
 import dictionary from "../lib/dictionary";
 import shuffle from "../lib/shuffle";
-import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile } from "../lib/scores";
+import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB } from "../lib/scores";
 import type { LeaderboardEntry } from "../lib/types";
 import OnboardingOverlay from "../components/OnboardingOverlay";
 
@@ -139,7 +139,7 @@ export default function Home() {
   const [gameMode, setGameMode] = useState<GameMode>(15);
 
   // NEW: State for overlay and player name
-  const [showOverlay, setShowOverlay] = useState(true);
+  const [showOverlay, setShowOverlay] = useState(false); // Will be set based on localStorage check
   const [playerName, setPlayerName] = useState("you");
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
@@ -486,6 +486,32 @@ export default function Home() {
     }
   }, [bannerVisible]);
 
+  // Check for existing player profile on mount
+  useEffect(() => {
+    const loadStoredPlayer = async () => {
+      const storedName = getStoredPlayerName();
+      if (storedName) {
+        setPlayerName(storedName);
+        // Restore user data from database if available
+        const hasData = await restoreUserDataFromDB(storedName);
+        if (hasData) {
+          // If data was restored, fetch and set the user profile for display
+          const profile = getUserProfile(storedName);
+          if (profile.hasProfile && profile.bestGameMode) {
+            const result = await getUserBestScore(storedName, profile.bestGameMode);
+            if (result.data) {
+              setUserProfile(result.data);
+            }
+          }
+        }
+        setShowOverlay(false);
+      } else {
+        setShowOverlay(true);
+      }
+    };
+    loadStoredPlayer();
+  }, []);
+
   const handleRestart = useCallback(() => {
     initGame();
     appBodyRef.current?.focus();
@@ -610,11 +636,36 @@ export default function Home() {
   }, [results]);
   
   // NEW: Handler for when the overlay is completed
-  const handleOnboardingComplete = (name: string) => {
-    setPlayerName(name || "you");
+  const handleOnboardingComplete = async (name: string) => {
+    const finalName = name || "you";
+    setPlayerName(finalName);
+    setStoredPlayerName(finalName);
+    
+    // Check if user exists in database and restore their data
+    const hasData = await restoreUserDataFromDB(finalName);
+    
+    if (hasData) {
+      // If data was restored, fetch and set the user profile for display
+      const profile = getUserProfile(finalName);
+      if (profile.hasProfile && profile.bestGameMode) {
+        const result = await getUserBestScore(finalName, profile.bestGameMode);
+        if (result.data) {
+          setUserProfile(result.data);
+        }
+      }
+    }
+    
     setShowOverlay(false);
     // Focus the game window now that the overlay is gone
     requestAnimationFrame(() => appBodyRef.current?.focus());
+  };
+
+  const handleResetPlayer = () => {
+    clearPlayerData(playerName);
+    setPlayerName("you");
+    setUserProfile(null);
+    setShowUserMenu(false);
+    setShowOverlay(true);
   };
 
   // We use the `group` class here to control UI state with Tailwind
@@ -679,16 +730,22 @@ export default function Home() {
             <div className="flex items-center space-x-4 relative">
               <button
                 onClick={() => {
-                  const profile = getUserProfile(playerName);
-                  if (profile.hasProfile && profile.bestGameMode) {
-                    getUserBestScore(playerName, profile.bestGameMode).then((result) => {
-                      if (result.data) {
-                        setUserProfile(result.data);
+                  // Always show menu if player has a name (not "you")
+                  if (playerName && playerName !== "you") {
+                    const profile = getUserProfile(playerName);
+                    if (profile.hasProfile && profile.bestGameMode) {
+                      getUserBestScore(playerName, profile.bestGameMode).then((result) => {
+                        if (result.data) {
+                          setUserProfile(result.data);
+                        } else {
+                          setUserProfile(null);
+                        }
                         setShowUserMenu(!showUserMenu);
-                      }
-                    });
-                  } else {
-                    setShowUserMenu(false);
+                      });
+                    } else {
+                      setUserProfile(null);
+                      setShowUserMenu(!showUserMenu);
+                    }
                   }
                 }}
                 className="text-dark-dim hover:text-dark-highlight transition-colors relative mr-5 cursor-pointer"
@@ -699,7 +756,7 @@ export default function Home() {
 
               {/* User Profile Dropdown */}
               <AnimatePresence>
-                {showUserMenu && userProfile && (
+                {showUserMenu && playerName && playerName !== "you" && (
                   <motion.div
                     ref={userMenuRef}
                     initial={{ opacity: 0, y: -10 }}
@@ -711,25 +768,57 @@ export default function Home() {
                     <div className="p-4 space-y-3 font-mono">
                       <div className="border-b border-dark-dim/20 pb-3">
                         <div className="text-sm text-dark-dim mb-1">name</div>
-                        <div className="text-lg font-bold text-dark-highlight">{userProfile.player_name}</div>
+                        <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-xs text-dark-dim mb-1">rank</div>
-                          <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
+                      {userProfile ? (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-xs text-dark-dim mb-1">rank</div>
+                              <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-dark-dim mb-1">score</div>
+                              <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-dark-dim mb-1">letter per second</div>
+                              <div className="text-sm font-bold text-dark-main">{userProfile.lps.toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-dark-dim mb-1">mode</div>
+                              <div className="text-sm font-bold text-dark-main">{userProfile.game_mode} words</div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="text-xs text-dark-dim mb-1">rank</div>
+                            <div className="text-sm font-bold text-dark-dim">-</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-dark-dim mb-1">score</div>
+                            <div className="text-sm font-bold text-dark-dim">-</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-dark-dim mb-1">letter per second</div>
+                            <div className="text-sm font-bold text-dark-dim">-</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-dark-dim mb-1">mode</div>
+                            <div className="text-sm font-bold text-dark-dim">-</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-xs text-dark-dim mb-1">score</div>
-                          <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-dark-dim mb-1">letter per second</div>
-                          <div className="text-sm font-bold text-dark-main">{userProfile.lps.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-dark-dim mb-1">mode</div>
-                          <div className="text-sm font-bold text-dark-main">{userProfile.game_mode} words</div>
-                        </div>
+                      )}
+                      <div className="border-t border-dark-dim/20 pt-3 mt-3">
+                        <button
+                          onClick={handleResetPlayer}
+                          className="w-full px-3 py-2 rounded-md bg-dark-bg hover:bg-dark-highlight hover:text-black text-dark-main text-sm font-mono transition-colors"
+                        >
+                          <i className="fa fa-refresh mr-2" />
+                          Reset player
+                        </button>
                       </div>
                     </div>
                   </motion.div>
