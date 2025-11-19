@@ -1373,12 +1373,12 @@ export default function Home() {
                             className="absolute z-50"
                             style={{ 
                               left: `${adjustedUserPosition}%`,
-                              top: '0px',
-                              transform: 'translateX(-50%) translateY(-100%)',
+                              top: '2px',
+                              transform: 'translateX(-50%) translateY(-18px)',
                               pointerEvents: 'none'
                             }}
                           >
-                            {/* Arrow/Triangle pointing up */}
+                            {/* Arrow/Triangle pointing up - positioned on the line */}
                             <div
                               className="relative"
                               style={{

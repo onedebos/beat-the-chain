@@ -113,10 +113,11 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
           {step === "name" && (
             <motion.form
               key="name"
+              layout
               initial={{ x: 20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.3, layout: { duration: 0.3, ease: "easeInOut" } }}
               onSubmit={handleSubmit}
               className="max-w-md mx-auto"
             >
@@ -139,11 +140,19 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                 <i className="fa fa-user absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 text-dark-dim" />
               </div>
               
-              {name.trim() && name.trim().length < 3 && (
-                <p className="text-center text-dark-dim mt-2 text-sm font-mono">
-                  Name must be at least 3 characters
-                </p>
-              )}
+              <AnimatePresence>
+                {name.trim() && name.trim().length < 3 && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-center text-dark-dim mt-2 text-sm font-mono"
+                  >
+                    Name must be at least 3 characters
+                  </motion.p>
+                )}
+              </AnimatePresence>
 
               <button
                 type="submit"
