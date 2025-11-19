@@ -254,6 +254,37 @@ export async function getUserBestScore(
 }
 
 /**
+ * Get all best scores for a user across all game modes
+ */
+export async function getAllUserScores(
+  playerName: string
+): Promise<{ data: LeaderboardEntry[]; error?: string }> {
+  try {
+    const gameModes = [15, 30, 60];
+    const allScores: LeaderboardEntry[] = [];
+
+    // Fetch best score for each game mode
+    for (const mode of gameModes) {
+      const result = await getUserBestScore(playerName, mode);
+      if (result.data) {
+        allScores.push(result.data);
+      }
+    }
+
+    // Sort by game mode (15, 30, 60)
+    allScores.sort((a, b) => a.game_mode - b.game_mode);
+
+    return { data: allScores };
+  } catch (err) {
+    console.error("Unexpected error fetching all user scores:", err);
+    return {
+      data: [],
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
+/**
  * Clear all localStorage data for a player
  */
 export function clearPlayerData(playerName: string): void {

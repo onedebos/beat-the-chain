@@ -6,7 +6,7 @@ import Link from "next/link";
 import html2canvas from "html2canvas";
 import dictionary from "../lib/dictionary";
 import shuffle from "../lib/shuffle";
-import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB } from "../lib/scores";
+import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB, getAllUserScores } from "../lib/scores";
 import type { LeaderboardEntry } from "../lib/types";
 import OnboardingOverlay from "../components/OnboardingOverlay";
 import CountUp from "../components/CountUp";
@@ -217,6 +217,7 @@ export default function Home() {
   const [rankingsLoading, setRankingsLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [userProfile, setUserProfile] = useState<LeaderboardEntry | null>(null);
+  const [allUserScores, setAllUserScores] = useState<LeaderboardEntry[]>([]);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const [hoveredMode, setHoveredMode] = useState<number | null>(null);
   const [animatedNumber, setAnimatedNumber] = useState<number | null>(null);
@@ -1000,22 +1001,25 @@ export default function Home() {
                 onClick={() => {
                     // Toggle user profile menu
                   if (playerName && playerName !== "you") {
-                    const profile = getUserProfile(playerName);
-                    if (profile.hasProfile && profile.bestGameMode) {
-                      getUserBestScore(playerName, profile.bestGameMode).then((result) => {
-                        if (result.data) {
-                          setUserProfile(result.data);
-                        } else {
-                          setUserProfile(null);
-                        }
-                        setShowUserMenu(!showUserMenu);
-                      });
-                    } else {
-                      setUserProfile(null);
+                    // Fetch all scores for all game modes
+                    getAllUserScores(playerName).then((result) => {
+                      if (result.data && result.data.length > 0) {
+                        setAllUserScores(result.data);
+                        // Set the best score as the primary profile (for backward compatibility)
+                        const bestScore = result.data.reduce((best, current) => 
+                          current.score > best.score ? current : best
+                        );
+                        setUserProfile(bestScore);
+                      } else {
+                        setAllUserScores([]);
+                        setUserProfile(null);
+                      }
                       setShowUserMenu(!showUserMenu);
-                    }
+                    });
                     } else {
                       // Still toggle the dropdown even if no player name
+                      setAllUserScores([]);
+                      setUserProfile(null);
                       setShowUserMenu(!showUserMenu);
                   }
                 }}
@@ -1047,46 +1051,35 @@ export default function Home() {
                           <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
                         </div>
                       )}
-                      {userProfile ? (
+                      {allUserScores.length > 0 ? (
                         <>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <div className="text-xs text-dark-dim mb-1">rank</div>
-                              <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-dark-dim mb-1">score</div>
-                              <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-dark-dim mb-1">letter per second</div>
-                              <div className="text-sm font-bold text-dark-main">{userProfile.lps.toFixed(2)}</div>
-                            </div>
-                            <div>
-                              <div className="text-xs text-dark-dim mb-1">mode</div>
-                              <div className="text-sm font-bold text-dark-main">{userProfile.game_mode} words</div>
-                            </div>
+                          <div className="space-y-2">
+                            {allUserScores.map((score) => (
+                              <div key={score.game_mode} className="flex items-center justify-between">
+                                <div className="text-xs text-dark-dim">
+                                  {score.game_mode} words
+                                </div>
+                                <div className="text-sm font-bold text-dark-main">
+                                  {score.lps.toFixed(2)} lps
+                                </div>
+                              </div>
+                            ))}
                           </div>
+                          {userProfile && (
+                            <div className="border-t border-dark-dim/20 pt-3 mt-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-dark-dim">best rank</div>
+                                <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs text-dark-dim">best score</div>
+                                <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
+                              </div>
+                            </div>
+                          )}
                         </>
                       ) : (
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-xs text-dark-dim mb-1">rank</div>
-                            <div className="text-sm font-bold text-dark-dim">-</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-dark-dim mb-1">score</div>
-                            <div className="text-sm font-bold text-dark-dim">-</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-dark-dim mb-1">letter per second</div>
-                            <div className="text-sm font-bold text-dark-dim">-</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-dark-dim mb-1">mode</div>
-                            <div className="text-sm font-bold text-dark-dim">-</div>
-                          </div>
-                        </div>
+                        <div className="text-sm text-dark-dim">No scores yet</div>
                       )}
                       <div className="border-t border-dark-dim/20 pt-3 mt-3">
                         <button

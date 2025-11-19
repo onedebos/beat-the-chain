@@ -111,9 +111,10 @@ export default function LeaderboardPage() {
           ) : (
             <>
               <div className="rounded-lg border border-dark-kbd bg-dark-kbd/40">
-                <div className="grid grid-cols-5 gap-3 border-b border-dark-kbd px-4 py-3 text-xs font-mono uppercase tracking-widest text-dark-dim">
+                <div className="grid grid-cols-6 gap-3 border-b border-dark-kbd px-4 py-3 text-xs font-mono uppercase tracking-widest text-dark-dim">
                   <div className="text-left">rank</div>
                   <div className="text-left col-span-2">user</div>
+                  <div className="text-right">score</div>
                   <div className="text-right">lps</div>
                   <div className="text-right">acc</div>
                 </div>
@@ -121,7 +122,7 @@ export default function LeaderboardPage() {
                   {currentLeaders.map((leader, idx) => (
                     <div
                       key={leader.id}
-                      className="grid grid-cols-5 gap-3 px-4 py-3 text-sm font-mono"
+                      className="grid grid-cols-6 gap-3 px-4 py-3 text-sm font-mono"
                     >
                       <div className="text-left">
                         <div className="text-dark-dim">#{startIndex + idx + 1}</div>
@@ -133,6 +134,7 @@ export default function LeaderboardPage() {
                         <div>{leader.player_name}</div>
                         <div className="text-xs text-dark-dim">{leader.game_mode} words</div>
                       </div>
+                      <div className="text-right text-dark-main">{leader.score.toFixed(2)}</div>
                       <div className="text-right text-dark-highlight">{leader.lps.toFixed(2)}</div>
                       <div className="text-right text-dark-main">{leader.accuracy.toFixed(1)}%</div>
                     </div>
