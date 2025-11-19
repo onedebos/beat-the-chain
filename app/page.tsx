@@ -275,7 +275,10 @@ export default function Home() {
 
       word.split("").forEach((char) => {
         const letterSpan = document.createElement("span");
-        letterSpan.className = "text-2xl leading-[2.25rem]"; // Tailwind classes
+        letterSpan.style.fontSize = "32px";
+        letterSpan.style.lineHeight = "1.5em";
+        letterSpan.style.fontFamily = "monospace";
+        letterSpan.style.color = "#646669";
         letterSpan.textContent = char;
         wordDiv.appendChild(letterSpan);
         letters.push(letterSpan);
@@ -283,7 +286,10 @@ export default function Home() {
 
       if (wordIndex < words.length - 1) {
         const spaceSpan = document.createElement("span");
-        spaceSpan.className = "text-2xl leading-[2.25rem]"; // Tailwind classes
+        spaceSpan.style.fontSize = "32px";
+        spaceSpan.style.lineHeight = "1.5em";
+        spaceSpan.style.fontFamily = "monospace";
+        spaceSpan.style.color = "#646669";
         spaceSpan.textContent = " ";
         wordDiv.appendChild(spaceSpan);
         letters.push(spaceSpan);
@@ -698,7 +704,7 @@ export default function Home() {
         URL.revokeObjectURL(url);
       }
     } else {
-      // Native Web Share API with screenshot
+      // Generic share (no specific platform) - use native share API
       if (navigator.share && screenshotFile) {
         try {
           await navigator.share({
@@ -1038,7 +1044,7 @@ export default function Home() {
             <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono">
               <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block" />
               
-              <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto text-2xl leading-[2.5rem] opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100" />
+              <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100 font-mono" style={{ fontSize: "32px", lineHeight: "1.5em", color: "#646669" }} />
               
               {gameMode === 60 ? (
                 <>
