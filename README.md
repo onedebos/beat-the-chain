@@ -26,7 +26,7 @@ It's like being told "you're next in line" at lightning speed — no bidding, no
 
 - **Race the Pacer:** Type the full text before the green blocks are completely formed.
 - **Accuracy is Key:** Your Final Score is (LPS × Accuracy). Sloppy typing won't win.
-- **Get a Rank:** Your rank is based on your typing speed. Faster typing = better blockchain rank!
+- **Get a Rank:** Your rank is based on your typing speed and accuracy. Faster and more accurate typing = better blockchain rank!
 
 ### Ranks
 

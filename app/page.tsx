@@ -350,17 +350,29 @@ export default function Home() {
     const durationSec = Math.max(durationMs / 1000, 0.001);
     const lettersPerSecond = lettersCount / durationSec;
     const accuracy = ((lettersCount - stateRef.current.errorCount) / lettersCount) * 100;
-    const finalScore = lettersPerSecond * (accuracy / 100);
+    // Score factors in accuracy more heavily by squaring the accuracy percentage
+    // This ensures accuracy is weighted more than just a simple multiplication
+    const accuracyDecimal = accuracy / 100;
+    const finalScore = lettersPerSecond * (accuracyDecimal * accuracyDecimal);
     const msPerLetter = durationMs / lettersCount;
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
-    // Rank based on typing speed (ms per letter)
+    // Rank based on typing speed AND accuracy
+    // Adjust effective msPerLetter based on accuracy to penalize errors
+    // Lower accuracy = higher effective msPerLetter (worse rank)
+    // Formula: effectiveMsPerLetter = msPerLetter / (accuracyDecimal ^ accuracyWeight)
+    // Using accuracyWeight of 2 means accuracy is weighted more heavily
+    const accuracyWeight = 2;
+    const effectiveMsPerLetter = msPerLetter / Math.pow(accuracyDecimal, accuracyWeight);
+    
+    // Categories: Sub-blocks (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
+    // Rank is determined by effective speed which accounts for accuracy
     let rank = "Bitcoin";
-    if (msPerLetter <= 200) rank = "Unichain/Base/Etherlink";
-    else if (msPerLetter <= 400) rank = "Solana";
-    else if (msPerLetter <= 1000) rank = "ETH Layer2s";
-    else if (msPerLetter <= 2000) rank = "Polygon";
-    else if (msPerLetter <= 12000) rank = "Ethereum Mainnet";
+    if (effectiveMsPerLetter <= 200) rank = "Sub-blocks";
+    else if (effectiveMsPerLetter <= 400) rank = "Solana";
+    else if (effectiveMsPerLetter <= 1000) rank = "ETH Layer2s";
+    else if (effectiveMsPerLetter <= 2000) rank = "Polygon";
+    else if (effectiveMsPerLetter <= 12000) rank = "Ethereum Mainnet";
     else rank = "Bitcoin";
 
     const resultsData = {
@@ -376,12 +388,14 @@ export default function Home() {
     setResults(resultsData);
 
     // Save to Supabase only if it's a new best score (fire and forget - don't block UI)
+    // Rank is already "Sub-blocks" if applicable
+    const rankForDB = rank;
     saveGameResult({
       player_name: playerName,
       score: parseFloat(finalScore.toFixed(2)),
       lps: parseFloat(lettersPerSecond.toFixed(2)),
       accuracy: parseFloat(Math.max(accuracy, 0).toFixed(1)),
-      rank,
+      rank: rankForDB,
       time: parseFloat(durationSec.toFixed(2)),
       ms_per_letter: parseFloat(msPerLetter.toFixed(0)),
       game_mode: gameMode,
@@ -419,11 +433,16 @@ export default function Home() {
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        const target = event.target as HTMLElement;
-        if (!target.closest('button[title="User Profile"]')) {
-          setShowUserMenu(false);
-        }
+      const target = event.target as HTMLElement;
+      // Don't close if clicking on the settings button itself
+      const settingsButton = target.closest('button[title="Settings"]');
+      if (settingsButton) {
+        return; // Let the button's onClick handle the toggle
+      }
+      
+      // Close if clicking outside the menu
+      if (userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserMenu(false);
       }
     };
 
@@ -742,9 +761,9 @@ export default function Home() {
 
   // We use the `group` class here to control UI state with Tailwind
   const containerClasses = [
-    "flex h-screen flex-col overflow-hidden group font-sans",
+    "flex h-screen flex-col group font-sans",
+    testFinished ? "test-finished overflow-y-auto" : "overflow-hidden",
     testStarted ? "test-started" : "",
-    testFinished ? "test-finished" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -755,60 +774,37 @@ export default function Home() {
         {showOverlay && <OnboardingOverlay onComplete={handleOnboardingComplete} />}
       </AnimatePresence>
 
-      {bannerVisible && (
-        <div className="bg-gradient-to-r from-dark-highlight via-green-400 to-dark-highlight flex items-center justify-center px-4 py-2 text-sm text-gray-900">
-          <span className="font-sedgwick">
-            Can you beat{" "}
-            <a
-              href="https://etherlink.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-bold underline"
-            >
-              Etherlink Sub-blocks
-            </a>
-            ?{" "}
-            <span className="font-bold">
-              <WavyTextComponent text="Prove your speed." replay={wavyReplay} />
-            </span>
-          </span>
-        </div>
-      )}
 
       <div id="app-content" className="flex flex-grow flex-col">
         <header className="p-6">
           <nav className="flex items-center justify-between text-xl">
-            <div className="flex items-center justify-center space-x-6">
+            <div className="flex items-center space-x-6">
               <div className="flex items-center space-x-3 text-dark-highlight">
-                <img src="/etherlink-logo.svg" alt="Etherlink" className="h-12 w-auto" />
-                <div className="flex flex-col items-end">
-                  <span className="font-nfs text-2xl">Proof of Speed</span>
-                  <span className="font-sedgwick text-xs text-white uppercase">Beat Etherlink Sub-blocks</span>
-                </div>
+                <img src="/etherlink-desktop-logo.svg" alt="Etherlink" className="h-12 w-auto" />
               </div>
               <div className="flex space-x-4">
-                <button className="text-dark-dim hover:text-dark-highlight transition-colors" title="Test">
-                  <i className="fa fa-keyboard-o h-6 w-6" />
+                <button className="text-dark-dim hover:text-dark-highlight transition-colors" title="start typing to play">
+                  <i className="fa-solid fa-keyboard h-6 w-6" />
                 </button>
                 <a
                   href="/leaderboard"
                   className="text-dark-dim hover:text-dark-highlight transition-colors"
                   title="Leaderboards"
                 >
-                  <i className="fa fa-star h-6 w-6" />
+                  <i className="fa-solid fa-star h-6 w-6" />
                 </a>
-                <button className="text-dark-dim hover:text-dark-highlight transition-colors" title="About">
-                  <i className="fa fa-info-circle h-6 w-6" />
-                </button>
-                <button className="text-dark-dim hover:text-dark-highlight transition-colors" title="Settings">
-                  <i className="fa fa-cog h-6 w-6" />
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4 relative">
+                <a
+                  href="https://etherlink.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-dark-dim hover:text-dark-highlight transition-colors"
+                  title="About"
+                >
+                  <i className="fa-solid fa-circle-info h-6 w-6" />
+                </a>
               <button
                 onClick={() => {
-                  // Always show menu if player has a name (not "you")
+                  // Toggle user profile menu
                   if (playerName && playerName !== "you") {
                     const profile = getUserProfile(playerName);
                     if (profile.hasProfile && profile.bestGameMode) {
@@ -824,14 +820,15 @@ export default function Home() {
                       setUserProfile(null);
                       setShowUserMenu(!showUserMenu);
                     }
+                  } else {
+                    // Still toggle the dropdown even if no player name
+                    setShowUserMenu(!showUserMenu);
                   }
                 }}
-                className="text-dark-dim hover:text-dark-highlight transition-colors relative mr-5 cursor-pointer"
-                title="User Profile"
+                className="text-dark-dim hover:text-dark-highlight transition-colors relative cursor-pointer"
+                title="Settings"
               >
-                <i className="fa fa-user h-6 w-6" />
-              </button>
-
+                  <i className="fa-solid fa-gear h-6 w-6" />
               {/* User Profile Dropdown */}
               <AnimatePresence>
                 {showUserMenu && playerName && playerName !== "you" && (
@@ -894,7 +891,7 @@ export default function Home() {
                           onClick={handleResetPlayer}
                           className="w-full px-3 py-2 rounded-md bg-dark-bg hover:bg-dark-highlight hover:text-black text-dark-main text-sm font-mono transition-colors"
                         >
-                          <i className="fa fa-refresh mr-2" />
+                          <i className="fa-solid fa-rotate mr-2" />
                           Reset player
                         </button>
                       </div>
@@ -902,18 +899,23 @@ export default function Home() {
                   </motion.div>
                 )}
               </AnimatePresence>
+                </button>
+              </div>
             </div>
           </nav>
         </header>
 
-        <div className="relative z-10 flex justify-center px-6 py-4">
+        <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4">
+          <div className="text-center">
+            <span className="font-nfs text-3xl text-dark-highlight">Proof of Speed</span>
+          </div>
           <div className="flex items-center space-x-6 rounded-lg bg-dark-kbd p-2 text-sm font-mono">
             <button className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors" title="Time">
-              <i className="fa fa-clock-o h-4 w-4" />
+              <i className="fa-solid fa-clock h-4 w-4" />
               <span className="lowercase tracking-wider">time</span>
             </button>
             <button className="flex items-center space-x-1 text-dark-highlight hover:text-dark-highlight transition-colors" title="Words">
-              <i className="fa fa-hashtag h-4 w-4" />
+              <i className="fa-solid fa-hashtag h-4 w-4" />
               <span className="lowercase tracking-wider">words</span>
             </button>
             <div className="h-5 w-px bg-dark-dim" />
@@ -979,12 +981,12 @@ export default function Home() {
           </div>
         </div>
 
-        <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center">
+        <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
           <button
             id="language-btn"
             className="mb-4 inline-flex items-center gap-2 text-sm text-dark-dim hover:text-dark-highlight font-mono lowercase tracking-wider transition-colors"
           >
-            <i className="fa fa-globe h-4 w-4" />
+            <i className="fa-solid fa-globe h-4 w-4" />
             <span>english</span>
           </button>
           
@@ -1070,14 +1072,9 @@ export default function Home() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-lg text-dark-dim text-left">vs. sub-block</div>
-                  <div
-                    id="result-comparison"
-                    className={`text-3xl font-bold text-left ${
-                      results.comparison.startsWith("-") ? "text-dark-highlight" : "text-dark-error"
-                    }`}
-                  >
-                    {results.comparison} ms
+                  <div className="text-lg text-dark-dim text-left">time</div>
+                  <div id="result-time" className="text-3xl font-bold text-dark-main text-left">
+                    {results.time}
                   </div>
                 </div>
               </div>
@@ -1109,36 +1106,298 @@ export default function Home() {
             </div>
 
             {/* Bottom Info */}
-            <div className="mt-10 pt-6 border-t border-dark-kbd flex justify-center space-x-12">
-              <div className="text-center">
-                <div className="text-lg text-dark-dim">rank</div>
-                <div id="result-rank" className="text-3xl font-bold text-dark-main">
+            <div className="mt-10 pt-6 border-t border-dark-kbd mb-20">
+              <div className="text-center mb-6">
+                <div className="text-lg text-dark-dim mb-2">You were as fast as</div>
+                <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight mb-6">
                   {results.rank}
                 </div>
               </div>
-              <div className="text-center">
-                <div className="text-lg text-dark-dim">time</div>
-                <div id="result-time" className="text-3xl font-bold text-dark-main">
-                  {results.time}
+              
+              {/* Rank Progress Bar */}
+              {(() => {
+                // Map the user's rank directly to the marker position
+                // This ensures the triangle marker is always on top of the correct rank marker
+                const rankToPosition: Record<string, number> = {
+                  'Bitcoin': 0,
+                  'Ethereum Mainnet': 20,
+                  'Polygon': 40,
+                  'ETH Layer2s': 60,
+                  'Solana': 80,
+                  'Sub-blocks': 100,
+                };
+                
+                // Get the position directly from the rank
+                const speedValue = rankToPosition[results.rank] ?? 0;
+                
+                // Clamp between 0 and 100
+                const clampedSpeedValue = Math.max(0, Math.min(100, speedValue));
+                
+                // Helper function to calculate relative luminance
+                const getLuminance = (hex: string) => {
+                  const rgb = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+                  if (!rgb) return 0;
+                  const r = parseInt(rgb[1], 16) / 255;
+                  const g = parseInt(rgb[2], 16) / 255;
+                  const b = parseInt(rgb[3], 16) / 255;
+                  const [rs, gs, bs] = [r, g, b].map(c => 
+                    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+                  );
+                  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+                };
+
+                // Helper function to calculate contrast ratio
+                const getContrast = (color1: string, color2: string) => {
+                  const lum1 = getLuminance(color1);
+                  const lum2 = getLuminance(color2);
+                  const lighter = Math.max(lum1, lum2);
+                  const darker = Math.min(lum1, lum2);
+                  return (lighter + 0.05) / (darker + 0.05);
+                };
+
+                // Background color (dark)
+                const bgColor = '#323437';
+
+                // Colors from logos: [background color, white/light color]
+                const logoColors: Record<string, string[]> = {
+                  'btc': ['#F7931A', '#FFFFFF'], // Bitcoin: orange bg, white symbol
+                  'eth': ['#627EEA', '#FFFFFF'], // Ethereum: purple bg, white symbol
+                  'matic': ['#6F41D8', '#FFFFFF'], // Polygon: purple bg, white symbol
+                  'sol': ['#66F9A1', '#FFFFFF'], // Solana: green bg, white symbol
+                  'xtz': ['#A6E000', '#FFFFFF'], // Tezos: lime green bg, white symbol
+                };
+
+                // Function to get best contrast color from logo
+                const getBestContrastColor = (iconKey: string | null, defaultColor: string) => {
+                  if (!iconKey || !logoColors[iconKey]) return defaultColor;
+                  const colors = logoColors[iconKey];
+                  const contrasts = colors.map(color => getContrast(color, bgColor));
+                  const maxContrastIndex = contrasts.indexOf(Math.max(...contrasts));
+                  return colors[maxContrastIndex];
+                };
+
+                // Define blockchain positions with equal spacing
+                // Bitcoin at beginning (left), Sub-blocks at end (right)
+                // Extract colors from logo icons (background colors from SVGs)
+                const chains = [
+                  { name: 'Bitcoin', ms: 600000, color: getBestContrastColor('btc', '#ff8c00'), icon: 'btc', displayTime: '10mins', gradientColor: '#F7931A' }, // Bitcoin orange from logo
+                  { name: 'Ethereum', ms: 12000, color: getBestContrastColor('eth', '#ffd700'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple from logo
+                  { name: 'Polygon', ms: 2000, color: getBestContrastColor('matic', '#7B3FE4'), icon: 'matic', displayTime: null, gradientColor: '#6F41D8' }, // Polygon purple from logo
+                  { name: 'ETH L2s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple
+                  { name: 'Solana', ms: 400, color: getBestContrastColor('sol', '#DC1FFF'), icon: 'sol', displayTime: null, gradientColor: '#66F9A1' }, // Solana green from logo
+                  { name: 'Sub-blocks', ms: 200, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'xtz', displayTime: null, gradientColor: '#A6E000' }, // Tezos lime green from logo
+                ];
+                
+                // Equal spacing: 0%, 20%, 40%, 60%, 80%, 100%
+                const blockchainPositions = chains.map((chain, index) => ({
+                  ...chain,
+                  position: (index / (chains.length - 1)) * 100
+                }));
+                
+                // Calculate chart start and end positions based on label positions
+                // Chart should start from Bitcoin icon (left edge of first label)
+                // and end at the right edge of Sub-blocks text (last label)
+                const chartStartOffset = 2.5; // Offset to align with Bitcoin icon
+                const chartEndOffset = 5; // Offset to extend past Sub-blocks text
+                const chartWidth = 100 - chartStartOffset - chartEndOffset;
+                
+                // Build smooth gradient from chain icon colors
+                // Gradient extends full width, but colors align with marker positions
+                // Map blockchain positions (0%, 20%, 40%, 60%, 80%, 100%) to actual positions on full-width gradient
+                const getGradientPosition = (blockchainPosition: number) => {
+                  // Convert blockchain position (0-100%) to actual position on full-width chart
+                  return chartStartOffset + (blockchainPosition / 100) * chartWidth;
+                };
+                
+                const gradientStops = chains.map((chain, index) => {
+                  const blockchainPosition = (index / (chains.length - 1)) * 100;
+                  const actualPosition = getGradientPosition(blockchainPosition);
+                  return `${chain.gradientColor} ${actualPosition}%`;
+                }).join(', ');
+                // Add edge colors to fill the tips
+                const gradientString = `${chains[0].gradientColor} 0%, ${gradientStops}, ${chains[chains.length - 1].gradientColor} 100%`;
+                
+                // Helper to lighten a hex color
+                const lightenColor = (hex: string, percent: number) => {
+                  const num = parseInt(hex.replace('#', ''), 16);
+                  const r = ((num >> 16) & 0xff);
+                  const g = ((num >> 8) & 0xff);
+                  const b = (num & 0xff);
+                  const newR = Math.min(255, Math.round(r + (255 - r) * percent));
+                  const newG = Math.min(255, Math.round(g + (255 - g) * percent));
+                  const newB = Math.min(255, Math.round(b + (255 - b) * percent));
+                  return `#${[newR, newG, newB].map(x => x.toString(16).padStart(2, '0')).join('')}`;
+                };
+                
+                // Brighter version for animation (20% lighter)
+                const brighterGradientStops = chains.map((chain, index) => {
+                  const blockchainPosition = (index / (chains.length - 1)) * 100;
+                  const actualPosition = getGradientPosition(blockchainPosition);
+                  const lighterColor = lightenColor(chain.gradientColor, 0.2);
+                  return `${lighterColor} ${actualPosition}%`;
+                }).join(', ');
+                const brighterGradientString = `${lightenColor(chains[0].gradientColor, 0.2)} 0%, ${brighterGradientStops}, ${lightenColor(chains[chains.length - 1].gradientColor, 0.2)} 100%`;
+                
+                return (
+                  <div className="w-full max-w-6xl mx-auto px-4">
+                    {/* Horizontal Gradient Line - Full width with colors extending to edges */}
+                    <div className="w-full relative mb-16 overflow-visible">
+                      {/* Animated Gradient Line - Full width to fill the tips */}
+                      <div className="w-full relative">
+                        <motion.div 
+                          className="h-1 rounded-sm w-full"
+                          animate={{
+                            background: [
+                              `linear-gradient(to right, ${gradientString})`,
+                              `linear-gradient(to right, ${brighterGradientString})`,
+                              `linear-gradient(to right, ${gradientString})`,
+                            ]
+                          }}
+                          transition={{
+                            duration: 4,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                          style={{
+                            background: `linear-gradient(to right, ${gradientString})`
+                          }}
+                        />
+                        {/* Animated Shimmer Overlay */}
+                        <motion.div
+                          className="absolute inset-0 h-1 rounded-sm pointer-events-none"
+                          style={{
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%)',
+                            backgroundSize: '200% 100%'
+                          }}
+                          animate={{
+                            backgroundPosition: ['200% 0', '-200% 0']
+                          }}
+                          transition={{
+                            duration: 3,
+                            repeat: Infinity,
+                            ease: "linear"
+                          }}
+                        />
                 </div>
+                      
+                      {/* Vertical Marker Lines for Each Blockchain - Adjusted for chart width */}
+                      {blockchainPositions.map((blockchain) => {
+                        // Adjust position to account for chart padding
+                        const adjustedPosition = chartStartOffset + (blockchain.position / 100) * chartWidth;
+                        return (
+                          <div
+                            key={blockchain.name}
+                            className="absolute top-0"
+                            style={{
+                              left: `${adjustedPosition}%`,
+                              transform: 'translateX(-50%)',
+                              zIndex: 10,
+                            }}
+                          >
+                            {/* Vertical Line */}
+                            <div
+                              className="w-px bg-dark-dim"
+                              style={{ height: '24px' }}
+                            />
+                            
+                            {/* Chain Label - Directly under marker */}
+                            <div
+                              className="absolute top-full mt-2"
+                              style={{
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                minWidth: '100px',
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                {/* Icons - Using cryptocurrency-icons */}
+                                {blockchain.icon && (
+                                  <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                    <img 
+                                      src={`/crypto-icons/${blockchain.icon}.svg`}
+                                      alt={blockchain.name}
+                                      className="w-5 h-5"
+                                    />
               </div>
+                                )}
+                                
+                                {/* Text Content */}
+                                <div className="flex flex-col">
+                                  {/* Name */}
+                                  <div 
+                                    className="text-xs font-mono font-bold leading-tight"
+                                    style={{ color: blockchain.color }}
+                                  >
+                                    {blockchain.name}
+                                  </div>
+                                  
+                                  {/* Block Time */}
+                                  <div 
+                                    className="text-[10px] font-mono leading-tight"
+                                    style={{ color: blockchain.color }}
+                                  >
+                                    {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      {/* User Position Indicator - Triangle only - Adjusted for chart width */}
+                      {clampedSpeedValue >= 0 && clampedSpeedValue <= 100 && (() => {
+                        // Adjust user position to account for chart padding
+                        const adjustedUserPosition = chartStartOffset + (clampedSpeedValue / 100) * chartWidth;
+                        return (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ duration: 0.5 }}
+                            className="absolute z-50"
+                            style={{ 
+                              left: `${adjustedUserPosition}%`,
+                              top: '0px',
+                              transform: 'translateX(-50%) translateY(-100%)',
+                              pointerEvents: 'none'
+                            }}
+                          >
+                            {/* Arrow/Triangle pointing up */}
+                            <div
+                              className="relative"
+                              style={{
+                                width: 0,
+                                height: 0,
+                                borderLeft: '12px solid transparent',
+                                borderRight: '12px solid transparent',
+                                borderBottom: '18px solid #38FF9C',
+                                filter: 'drop-shadow(0 0 10px rgba(56, 255, 156, 1))',
+                              }}
+                            />
+                          </motion.div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Restart Button and Leaderboard Link */}
-            <div className="mt-12 flex items-center justify-center space-x-6">
+            <div className="mt-16 flex items-center justify-center space-x-6">
               <button
                 type="button"
                 onClick={handleRestart}
-                className="text-lg text-dark-dim hover:text-dark-highlight font-mono lowercase tracking-wider transition-colors flex items-center"
+                className="cursor text-lg text-dark-dim hover:text-dark-highlight font-mono lowercase tracking-wider transition-colors flex items-center"
               >
-                <i className="fa fa-refresh h-4 w-4" />
+                <i className="fa-solid fa-rotate h-4 w-4" />
                 <span className="ml-1">restart</span>
               </button>
               <Link
                 href="/leaderboard"
                 className="text-lg text-dark-dim hover:text-dark-highlight font-mono lowercase tracking-wider transition-colors flex items-center"
               >
-                <i className="fa fa-star h-4 w-4" />
+                <i className="fa-solid fa-star h-4 w-4" />
                 <span className="ml-1">leaderboard</span>
               </Link>
             </div>
@@ -1155,7 +1414,7 @@ export default function Home() {
                   className="flex items-center space-x-2 px-4 py-2 rounded-md bg-dark-kbd hover:bg-dark-kbd/80 text-dark-dim hover:text-dark-highlight transition-colors font-mono text-sm lowercase tracking-wider"
                   title="Share on Twitter"
                 >
-                  <i className="fa fa-twitter h-4 w-4" />
+                  <i className="fa-brands fa-twitter h-4 w-4" />
                   <span>twitter</span>
                 </button>
                 <button
@@ -1164,7 +1423,7 @@ export default function Home() {
                   className="flex items-center space-x-2 px-4 py-2 rounded-md bg-dark-kbd hover:bg-dark-kbd/80 text-dark-dim hover:text-dark-highlight transition-colors font-mono text-sm lowercase tracking-wider"
                   title="Share on Facebook"
                 >
-                  <i className="fa fa-facebook h-4 w-4" />
+                  <i className="fa-brands fa-facebook h-4 w-4" />
                   <span>facebook</span>
                 </button>
                 <button
@@ -1173,7 +1432,7 @@ export default function Home() {
                   className="flex items-center space-x-2 px-4 py-2 rounded-md bg-dark-kbd hover:bg-dark-kbd/80 text-dark-dim hover:text-dark-highlight transition-colors font-mono text-sm lowercase tracking-wider"
                   title="Share on LinkedIn"
                 >
-                  <i className="fa fa-linkedin h-4 w-4" />
+                  <i className="fa-brands fa-linkedin h-4 w-4" />
                   <span>linkedin</span>
                 </button>
                 <button
@@ -1182,7 +1441,7 @@ export default function Home() {
                   className="flex items-center space-x-2 px-4 py-2 rounded-md bg-dark-kbd hover:bg-dark-kbd/80 text-dark-dim hover:text-dark-highlight transition-colors font-mono text-sm lowercase tracking-wider"
                   title="Share"
                 >
-                  <i className="fa fa-share-alt h-4 w-4" />
+                  <i className="fa-solid fa-share-nodes h-4 w-4" />
                   <span>share</span>
                 </button>
               </div>
@@ -1210,7 +1469,7 @@ export default function Home() {
                 href="mailto:reachout@etherlink.com"
                 className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
               >
-                <i className="fa fa-envelope h-4 w-4" />
+                <i className="fa-solid fa-envelope h-4 w-4" />
                 <span>contact</span>
               </a>
               <a
@@ -1219,7 +1478,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
               >
-                <i className="fa fa-github h-4 w-4" />
+                <i className="fa-brands fa-github h-4 w-4" />
                 <span>github</span>
               </a>
               <a
@@ -1228,7 +1487,7 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
               >
-                <i className="fa fa-slack h-4 w-4" />
+                <i className="fa-brands fa-discord h-4 w-4" />
                 <span>discord</span>
               </a>
               <a
@@ -1237,19 +1496,19 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
               >
-                <i className="fa fa-twitter h-4 w-4" />
+                <i className="fa-brands fa-twitter h-4 w-4" />
                 <span>twitter</span>
               </a>
               <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors">
-                <i className="fa fa-info-circle h-4 w-4" />
+                <i className="fa-solid fa-circle-info h-4 w-4" />
                 <span>terms</span>
               </a>
               <a href="#" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors">
-                <i className="fa fa-shield h-4 w-4" />
+                <i className="fa-solid fa-shield h-4 w-4" />
                 <span>security</span>
               </a>
               <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors">
-                <i className="fa fa-lock h-4 w-4" />
+                <i className="fa-solid fa-lock h-4 w-4" />
                 <span>privacy</span>
               </a>
             </div>

@@ -76,7 +76,7 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                   </li>
                   <li className="flex items-center">
                     <i className="fa fa-trophy h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                    <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed. Faster typing = better blockchain rank!</span>
+                    <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed and accuracy. Faster and more accurate typing = better blockchain rank!</span>
                   </li>
                 </ol>
               </div>

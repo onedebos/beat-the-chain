@@ -58,6 +58,7 @@ export function setLocalRecordId(playerName: string, gameMode: number, id: numbe
 /**
  * Save a game result to the database only if it's better than existing score
  * Also updates localStorage cache
+ * Uses API route with service role key for writes
  */
 export async function saveGameResult(result: GameResult): Promise<{ success: boolean; error?: string; isNewBest?: boolean; id?: number }> {
   try {
@@ -67,99 +68,45 @@ export async function saveGameResult(result: GameResult): Promise<{ success: boo
       return { success: true, isNewBest: false };
     }
 
-    // Check if we have a stored record ID
-    const existingRecordId = getLocalRecordId(result.player_name, result.game_mode);
+    // Call API route which uses service role key for writes
+    const response = await fetch("/api/game-results", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(result),
+    });
 
-    if (existingRecordId) {
-      // We have an existing record - check if new score is better, then UPDATE
-      const bestScoreResult = await getUserBestScore(
-        result.player_name,
-        result.game_mode
-      );
+    const apiResult = await response.json();
 
-      if (bestScoreResult.data && result.score > bestScoreResult.data.score) {
-        // New score is better - UPDATE the existing record
-        const { data, error } = await supabase
-          .from("game_results")
-          .update({
-            score: result.score,
-            lps: result.lps,
-            accuracy: result.accuracy,
-            rank: result.rank,
-            time: result.time,
-            ms_per_letter: result.ms_per_letter,
-          })
-          .eq("id", existingRecordId)
-          .select();
+    if (!apiResult.success) {
+      return { success: false, error: apiResult.error || "Failed to save game result" };
+    }
 
-        if (error) {
-          console.error("Error updating game result:", error);
-          return { success: false, error: error.message };
-        }
-
-        // Update localStorage cache
-        setLocalBestScore(result.player_name, result.game_mode, result.score);
-
-        const updatedId = data && data[0] ? data[0].id : existingRecordId;
-        return { success: true, isNewBest: true, id: updatedId };
-      } else {
-        // Score not better - don't update
-        if (bestScoreResult.data) {
-          setLocalBestScore(result.player_name, result.game_mode, bestScoreResult.data.score);
-        }
-        return { success: true, isNewBest: false, id: existingRecordId };
+    // Update localStorage cache
+    if (apiResult.isNewBest) {
+      setLocalBestScore(result.player_name, result.game_mode, result.score);
+      if (apiResult.id) {
+        setLocalRecordId(result.player_name, result.game_mode, apiResult.id);
       }
     } else {
-      // No existing record ID - check database for any existing record
+      // If not a new best, we still want to ensure localStorage is up to date
+      // Fetch the current best to update cache
       const bestScoreResult = await getUserBestScore(
         result.player_name,
         result.game_mode
       );
-
-      if (bestScoreResult.error && bestScoreResult.error !== "No record found") {
-        console.error("Error checking existing score:", bestScoreResult.error);
-        // Continue anyway - might be first score
-      }
-
-      // Only save if this is a new best score (or first score)
-      if (bestScoreResult.data && result.score <= bestScoreResult.data.score) {
-        // Not a new best - but store the existing record ID for future updates
-        setLocalRecordId(result.player_name, result.game_mode, bestScoreResult.data.id);
+      if (bestScoreResult.data) {
         setLocalBestScore(result.player_name, result.game_mode, bestScoreResult.data.score);
-        return { success: true, isNewBest: false, id: bestScoreResult.data.id };
+        setLocalRecordId(result.player_name, result.game_mode, bestScoreResult.data.id);
       }
-
-      // This is a new best score (or first score) - INSERT it
-      const { data, error } = await supabase
-        .from("game_results")
-        .insert([
-          {
-            player_name: result.player_name,
-            score: result.score,
-            lps: result.lps,
-            accuracy: result.accuracy,
-            rank: result.rank,
-            time: result.time,
-            ms_per_letter: result.ms_per_letter,
-            game_mode: result.game_mode,
-          },
-        ])
-        .select(); // This returns the inserted record(s) with their IDs
-
-      if (error) {
-        console.error("Error saving game result:", error);
-        return { success: false, error: error.message };
-      }
-
-      // Update localStorage cache with both score and ID
-      const insertedId = data && data[0] ? data[0].id : undefined;
-      if (insertedId) {
-        setLocalRecordId(result.player_name, result.game_mode, insertedId);
-      }
-      setLocalBestScore(result.player_name, result.game_mode, result.score);
-
-      return { success: true, isNewBest: true, id: insertedId };
     }
+
+    return {
+      success: true,
+      isNewBest: apiResult.isNewBest || false,
+      id: apiResult.id,
+    };
   } catch (err) {
     console.error("Unexpected error saving game result:", err);
     return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
@@ -167,7 +114,17 @@ export async function saveGameResult(result: GameResult): Promise<{ success: boo
 }
 
 /**
+ * Calculate accuracy-weighted score
+ * Uses squared accuracy to give it more weight in the ranking
+ */
+function calculateAccuracyWeightedScore(lps: number, accuracy: number): number {
+  const accuracyDecimal = accuracy / 100;
+  return lps * (accuracyDecimal * accuracyDecimal);
+}
+
+/**
  * Get leaderboard entries for a specific game mode
+ * Sorted by accuracy-weighted score (lps * (accuracy/100)^2)
  * @param gameMode - The game mode (15, 30, or 60 words)
  * @param limit - Number of entries to return (default: 10)
  */
@@ -176,19 +133,47 @@ export async function getLeaderboard(
   limit: number = 10
 ): Promise<{ data: LeaderboardEntry[] | null; error?: string }> {
   try {
+    // Fetch all entries for this game mode so we can properly sort by accuracy-weighted score
+    // Use a high limit to get all entries (Supabase default max is reasonable)
     const { data, error } = await supabase
       .from("game_results")
       .select("*")
       .eq("game_mode", gameMode)
-      .order("score", { ascending: false })
-      .limit(limit);
+      .limit(10000); // Fetch a large number to ensure we get all entries for proper sorting
 
     if (error) {
       console.error("Error fetching leaderboard:", error);
       return { data: null, error: error.message };
     }
 
-    return { data: data as LeaderboardEntry[] };
+    if (!data || data.length === 0) {
+      return { data: [] };
+    }
+
+    // Calculate accuracy-weighted score for each entry and sort
+    const entriesWithWeightedScore = data.map((entry) => ({
+      ...entry,
+      weightedScore: calculateAccuracyWeightedScore(entry.lps, entry.accuracy),
+    }));
+
+    // Sort by weighted score (descending), then by accuracy (descending) as tiebreaker, then by lps
+    entriesWithWeightedScore.sort((a, b) => {
+      // Primary sort: weighted score (higher is better)
+      if (Math.abs(b.weightedScore - a.weightedScore) > 0.0001) {
+        return b.weightedScore - a.weightedScore;
+      }
+      // Secondary sort: accuracy (higher is better)
+      if (Math.abs(b.accuracy - a.accuracy) > 0.01) {
+        return b.accuracy - a.accuracy;
+      }
+      // Tertiary sort: lps (higher is better)
+      return b.lps - a.lps;
+    });
+
+    // Return top entries (remove the weightedScore property before returning)
+    const topEntries = entriesWithWeightedScore.slice(0, limit).map(({ weightedScore, ...entry }) => entry);
+
+    return { data: topEntries as LeaderboardEntry[] };
   } catch (err) {
     console.error("Unexpected error fetching leaderboard:", err);
     return {

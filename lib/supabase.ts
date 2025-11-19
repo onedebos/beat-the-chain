@@ -9,5 +9,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// Client-side client (uses anon key)
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Server-side client (uses service role key for writes)
+// This should only be used in API routes or server components
+export function getSupabaseServerClient() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Please check your .env.local file."
+    );
+  }
+  
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
 

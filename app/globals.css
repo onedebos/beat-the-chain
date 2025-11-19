@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "font-awesome/css/font-awesome.css";
+@import "@fortawesome/fontawesome-free/css/all.css";
 
 @font-face {
   font-family: 'NFS';
