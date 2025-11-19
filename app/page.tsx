@@ -484,34 +484,63 @@ export default function Home() {
     };
   }, [showUserMenu]);
 
-  // Adjust dropdown position to prevent overflow
+  // Adjust dropdown position to prevent overflow and ensure it's under the button
   useEffect(() => {
     if (showUserMenu && userMenuRef.current) {
-      // Use requestAnimationFrame to ensure DOM has updated
+      // Use double requestAnimationFrame to ensure DOM has fully updated
       requestAnimationFrame(() => {
-        if (!userMenuRef.current) return;
-        
-        const dropdown = userMenuRef.current;
-        const rect = dropdown.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const padding = 16; // Padding from viewport edge
-        
-        // Check for overflow on both sides
-        const overflowRight = rect.right > viewportWidth - padding;
-        const overflowLeft = rect.left < padding;
-        
-        if (overflowRight && !overflowLeft) {
-          // Overflow on right, shift left
-          const overflow = rect.right - (viewportWidth - padding);
-          dropdown.style.left = `calc(50% - ${overflow}px)`;
-        } else if (overflowLeft && !overflowRight) {
-          // Overflow on left, shift right
-          const overflow = padding - rect.left;
-          dropdown.style.left = `calc(50% + ${overflow}px)`;
-        } else {
-          // No overflow or both sides overflow (use default centered)
-          dropdown.style.left = '50%';
-        }
+        requestAnimationFrame(() => {
+          if (!userMenuRef.current) return;
+          
+          const dropdown = userMenuRef.current;
+          const viewportWidth = window.innerWidth;
+          const padding = 16; // Padding from viewport edge
+          const dropdownWidth = 256; // w-64 = 256px
+          
+          // Get the button element (settings button) - it's the sibling before the dropdown
+          const parent = dropdown.parentElement;
+          const settingsButton = parent?.querySelector('button[title="Settings"]') as HTMLElement;
+          
+          if (settingsButton && parent) {
+            const buttonRect = settingsButton.getBoundingClientRect();
+            const parentRect = parent.getBoundingClientRect();
+            
+            // Calculate button's right edge position relative to parent
+            const buttonRightRelative = buttonRect.right - parentRect.left;
+            const parentRight = parentRect.width;
+            
+            // Calculate offset needed to align dropdown's right edge with button's right edge
+            // Since dropdown uses right: 0 (which is parent's right edge), we need to offset
+            const offset = parentRight - buttonRightRelative;
+            
+            // Calculate where dropdown's right edge would be on screen
+            const dropdownRightAbsolute = buttonRect.right;
+            const dropdownLeftAbsolute = dropdownRightAbsolute - dropdownWidth;
+            
+            // Check for overflow and adjust
+            if (dropdownRightAbsolute > viewportWidth - padding) {
+              // Overflow on right - shift left
+              const overflow = dropdownRightAbsolute - (viewportWidth - padding);
+              dropdown.style.right = `${offset + overflow}px`;
+            } else if (dropdownLeftAbsolute < padding) {
+              // Overflow on left - shift right
+              const leftOverflow = padding - dropdownLeftAbsolute;
+              dropdown.style.right = `${offset - leftOverflow}px`;
+            } else {
+              // No overflow - align with button
+              dropdown.style.right = `${offset}px`;
+            }
+          } else {
+            // Fallback: just prevent right overflow
+            const rect = dropdown.getBoundingClientRect();
+            if (rect.right > viewportWidth - padding) {
+              const overflow = rect.right - (viewportWidth - padding);
+              dropdown.style.right = `${overflow}px`;
+            } else {
+              dropdown.style.right = '0px';
+            }
+          }
+        });
       });
     }
   }, [showUserMenu]);
@@ -1006,8 +1035,8 @@ export default function Home() {
                     transition={{ duration: 0.1 }}
                     className="absolute top-full mt-2 w-64 rounded-lg bg-dark-kbd border border-dark-dim/20 shadow-2xl z-50 overflow-hidden"
                     style={{ 
-                      left: '50%',
-                      transform: 'translateX(-50%)',
+                      right: 0,
+                      transform: 'translateX(0)',
                       maxWidth: 'min(256px, calc(100vw - 3rem))'
                     }}
                   >
@@ -1327,19 +1356,56 @@ export default function Home() {
               
               {/* Rank Progress Bar */}
               {(() => {
-                // Map the user's rank directly to the marker position
-                // This ensures the triangle marker is always on top of the correct rank marker
-                const rankToPosition: Record<string, number> = {
-                  'Bitcoin': 0,
-                  'Ethereum Mainnet': 20,
-                  'Polygon': 40,
-                  'ETH L2s': 60,
-                  'Solana': 80,
-                  'Sub-blocks': 100,
+                // Calculate triangle position based on user's actual msPerLetter value
+                // This allows the triangle to slide to the exact position on the scale
+                // while the rank is still determined by the defined ranges
+                const userMsPerLetter = parseFloat(results.msPerLetter) || 0;
+                
+                // Define the blockchain thresholds and their positions
+                const blockchainThresholds = [
+                  { ms: 600000, position: 0 },   // Bitcoin
+                  { ms: 12000, position: 20 },    // Ethereum Mainnet
+                  { ms: 2000, position: 40 },     // Polygon
+                  { ms: 1000, position: 60 },     // ETH L2s
+                  { ms: 400, position: 80 },       // Solana
+                  { ms: 200, position: 100 },     // Sub-blocks
+                ];
+                
+                // Function to calculate position using logarithmic interpolation between thresholds
+                // This ensures the triangle position accurately reflects the user's actual time
+                const getPosition = (ms: number): number => {
+                  // Clamp the value to the range
+                  const clampedMs = Math.max(200, Math.min(600000, ms));
+                  
+                  // Find which two thresholds the value falls between
+                  for (let i = 0; i < blockchainThresholds.length - 1; i++) {
+                    const lower = blockchainThresholds[i + 1]; // Lower ms value (faster)
+                    const upper = blockchainThresholds[i];     // Higher ms value (slower)
+                    
+                    if (clampedMs >= lower.ms && clampedMs <= upper.ms) {
+                      // Use logarithmic interpolation within this range
+                      const logLower = Math.log10(lower.ms);
+                      const logUpper = Math.log10(upper.ms);
+                      const logValue = Math.log10(clampedMs);
+                      
+                      // Normalize within this segment
+                      const segmentNormalized = (logValue - logLower) / (logUpper - logLower);
+                      
+                      // Interpolate position between the two markers
+                      const positionRange = upper.position - lower.position;
+                      return lower.position + (segmentNormalized * positionRange);
+                    }
+                  }
+                  
+                  // Handle edge cases
+                  if (clampedMs <= 200) return 100; // Sub-blocks or faster
+                  if (clampedMs >= 600000) return 0; // Bitcoin or slower
+                  
+                  return 0;
                 };
                 
-                // Get the position directly from the rank
-                const speedValue = rankToPosition[results.rank] ?? 0;
+                // Calculate the position based on actual msPerLetter
+                const speedValue = getPosition(userMsPerLetter);
                 
                 // Clamp between 0 and 100
                 const clampedSpeedValue = Math.max(0, Math.min(100, speedValue));
