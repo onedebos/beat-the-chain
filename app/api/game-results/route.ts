@@ -14,6 +14,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate player name (3-50 characters, alphanumeric, dots, hyphens, underscores only)
+    const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
+    if (!nameRegex.test(body.player_name)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid player name format" },
+        { status: 400 }
+      );
+    }
+
+    // Validate game mode (must be 15, 30, or 60)
+    if (![15, 30, 60].includes(body.game_mode)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid game mode" },
+        { status: 400 }
+      );
+    }
+
+    // Validate numeric values are reasonable
+    if (body.score < 0 || body.score > 10000) {
+      return NextResponse.json(
+        { success: false, error: "Score out of valid range" },
+        { status: 400 }
+      );
+    }
+
+    if (body.lps < 0 || body.lps > 100) {
+      return NextResponse.json(
+        { success: false, error: "LPS out of valid range" },
+        { status: 400 }
+      );
+    }
+
+    if (body.accuracy < 0 || body.accuracy > 100) {
+      return NextResponse.json(
+        { success: false, error: "Accuracy out of valid range" },
+        { status: 400 }
+      );
+    }
+
+    if (body.ms_per_letter < 0 || body.ms_per_letter > 1000000) {
+      return NextResponse.json(
+        { success: false, error: "ms_per_letter out of valid range" },
+        { status: 400 }
+      );
+    }
+
+    // Validate consistency: score should approximately equal lps * (accuracy/100)^2
+    // Allow small floating point differences (within 0.1)
+    const expectedScore = body.lps * Math.pow(body.accuracy / 100, 2);
+    const scoreDifference = Math.abs(body.score - expectedScore);
+    if (scoreDifference > 0.1) {
+      return NextResponse.json(
+        { success: false, error: "Score calculation mismatch" },
+        { status: 400 }
+      );
+    }
+
+    // Validate consistency: ms_per_letter should approximately equal 1000 / lps
+    // Allow small differences (within 10ms)
+    const expectedMsPerLetter = 1000 / body.lps;
+    const msDifference = Math.abs(body.ms_per_letter - expectedMsPerLetter);
+    if (msDifference > 10) {
+      return NextResponse.json(
+        { success: false, error: "ms_per_letter calculation mismatch" },
+        { status: 400 }
+      );
+    }
+
     const supabase = getSupabaseServerClient();
     
     // Check if we have an existing record by player_name and game_mode

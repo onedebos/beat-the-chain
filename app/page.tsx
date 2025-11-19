@@ -9,6 +9,8 @@ import shuffle from "../lib/shuffle";
 import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB } from "../lib/scores";
 import type { LeaderboardEntry } from "../lib/types";
 import OnboardingOverlay from "../components/OnboardingOverlay";
+import CountUp from "../components/CountUp";
+import { Confetti, type ConfettiRef } from "../components/Confetti";
 
 // --- GAME CONSTANTS ---
 const SUB_BLOCK_SPEED_MS = 200;
@@ -225,6 +227,7 @@ export default function Home() {
   const wordsRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
   const subBlockBarRef = useRef<HTMLDivElement>(null);
+  const confettiRef = useRef<ConfettiRef>(null);
   const resultsScreenRef = useRef<HTMLDivElement>(null);
 
   const stateRef = useRef<GameState>({
@@ -370,7 +373,7 @@ export default function Home() {
     let rank = "Bitcoin";
     if (effectiveMsPerLetter <= 200) rank = "Sub-blocks";
     else if (effectiveMsPerLetter <= 400) rank = "Solana";
-    else if (effectiveMsPerLetter <= 1000) rank = "ETH Layer2s";
+    else if (effectiveMsPerLetter <= 1000) rank = "ETH Layer 2's";
     else if (effectiveMsPerLetter <= 2000) rank = "Polygon";
     else if (effectiveMsPerLetter <= 12000) rank = "Ethereum Mainnet";
     else rank = "Bitcoin";
@@ -434,6 +437,18 @@ export default function Home() {
   useEffect(() => {
     initGame();
   }, [gameMode, initGame]);
+
+  // Trigger confetti if user is faster than Sub-blocks
+  useEffect(() => {
+    if (testFinished && results.rank === "Sub-blocks") {
+      const msPerLetter = parseFloat(results.msPerLetter) || 0;
+      if (msPerLetter < 200 && confettiRef.current) {
+        setTimeout(() => {
+          confettiRef.current?.fire();
+        }, 500);
+      }
+    }
+  }, [testFinished, results.rank, results.msPerLetter]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -773,6 +788,7 @@ export default function Home() {
 
   return (
     <div id="app-body" className={containerClasses} ref={appBodyRef} tabIndex={-1}>
+      <Confetti ref={confettiRef} className="fixed top-0 left-0 z-[100] w-full h-full pointer-events-none" />
       
       {/* NEW: Render the overlay with AnimatePresence */}
       <AnimatePresence>
@@ -784,9 +800,13 @@ export default function Home() {
         <header className="p-6">
           <nav className="flex items-center justify-between text-xl">
             <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-3 text-dark-highlight">
+              <button 
+                onClick={initGame}
+                className="flex items-center space-x-3 text-dark-highlight hover:opacity-80 transition-opacity cursor-pointer"
+                title="Reset game"
+              >
                 <img src="/etherlink-desktop-logo.svg" alt="Etherlink" className="h-12 w-auto" />
-              </div>
+              </button>
               <div className="flex space-x-4">
                 <button 
                   onClick={() => {
@@ -1057,7 +1077,7 @@ export default function Home() {
             <div className="text-center mb-10">
               <div className="text-lg text-dark-dim">Final Score</div>
               <div id="result-score" className="text-7xl font-bold text-dark-highlight">
-                {results.score}
+                <CountUp value={parseFloat(results.score) || 0} decimals={2} />
               </div>
             </div>
 
@@ -1068,13 +1088,13 @@ export default function Home() {
                 <div>
                   <div className="text-lg text-dark-dim text-left">letter per second</div>
                   <div id="result-lps" className="text-4xl font-bold text-dark-main text-left">
-                    {results.lps}
+                    <CountUp value={parseFloat(results.lps) || 0} decimals={2} />
                   </div>
                 </div>
                 <div>
                   <div className="text-lg text-dark-dim text-left">acc</div>
                   <div id="result-acc" className="text-4xl font-bold text-dark-main text-left">
-                    {results.accuracy}
+                    <CountUp value={parseFloat(results.accuracy.replace('%', '')) || 0} decimals={1} suffix="%" />
                   </div>
                 </div>
               </div>
@@ -1084,13 +1104,13 @@ export default function Home() {
                 <div>
                   <div className="text-lg text-dark-dim text-left">your speed</div>
                   <div id="result-ms" className="text-3xl font-bold text-dark-main text-left">
-                    {results.msPerLetter} <span className="text-xl">ms/letter</span>
+                    <CountUp value={parseFloat(results.msPerLetter) || 0} decimals={0} /> <span className="text-xl">ms/letter</span>
                   </div>
                 </div>
                 <div>
                   <div className="text-lg text-dark-dim text-left">time</div>
                   <div id="result-time" className="text-3xl font-bold text-dark-main text-left">
-                    {results.time}
+                    <CountUp value={parseFloat(results.time.replace('s', '')) || 0} decimals={2} suffix="s" />
                   </div>
                 </div>
               </div>
@@ -1124,10 +1144,21 @@ export default function Home() {
             {/* Bottom Info */}
             <div className="mt-10 pt-6 border-t border-dark-kbd mb-20">
               <div className="text-center mb-6">
-                <div className="text-lg text-dark-dim mb-2">You were as fast as</div>
-                <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight mb-6">
+                {(() => {
+                  const msPerLetter = parseFloat(results.msPerLetter) || 0;
+                  const isFasterThanSubblocks = msPerLetter < 200 && results.rank === "Sub-blocks";
+                  
+                  return (
+                    <>
+                      <div className="text-lg text-dark-dim mb-2">
+                        {isFasterThanSubblocks ? "You were faster than" : "You were as fast as"}
+                      </div>
+                      <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight mb-6">
                   {results.rank}
                 </div>
+                    </>
+                  );
+                })()}
               </div>
               
               {/* Rank Progress Bar */}
@@ -1138,7 +1169,7 @@ export default function Home() {
                   'Bitcoin': 0,
                   'Ethereum Mainnet': 20,
                   'Polygon': 40,
-                  'ETH Layer2s': 60,
+                  'ETH Layer 2\'s': 60,
                   'Solana': 80,
                   'Sub-blocks': 100,
                 };
@@ -1199,7 +1230,7 @@ export default function Home() {
                   { name: 'Bitcoin', ms: 600000, color: getBestContrastColor('btc', '#ff8c00'), icon: 'btc', displayTime: '10mins', gradientColor: '#F7931A' }, // Bitcoin orange from logo
                   { name: 'Ethereum', ms: 12000, color: getBestContrastColor('eth', '#ffd700'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple from logo
                   { name: 'Polygon', ms: 2000, color: getBestContrastColor('matic', '#7B3FE4'), icon: 'matic', displayTime: null, gradientColor: '#6F41D8' }, // Polygon purple from logo
-                  { name: 'ETH L2s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple
+                  { name: 'ETH Layer 2\'s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple
                   { name: 'Solana', ms: 400, color: getBestContrastColor('sol', '#DC1FFF'), icon: 'sol', displayTime: null, gradientColor: '#66F9A1' }, // Solana green from logo
                   { name: 'Sub-blocks', ms: 200, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'xtz', displayTime: null, gradientColor: '#A6E000' }, // Tezos lime green from logo
                 ];
@@ -1325,7 +1356,7 @@ export default function Home() {
                                 minWidth: '100px',
                               }}
                             >
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
                                 {/* Icons - Using cryptocurrency-icons */}
                                 {blockchain.icon && (
                                   <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
@@ -1361,18 +1392,24 @@ export default function Home() {
                         );
                       })}
                       
-                      {/* User Position Indicator - Triangle only - Adjusted for chart width */}
+                      {/* User Position Indicator - Triangle only - Sliding animation */}
                       {clampedSpeedValue >= 0 && clampedSpeedValue <= 100 && (() => {
                         // Adjust user position to account for chart padding
                         const adjustedUserPosition = chartStartOffset + (clampedSpeedValue / 100) * chartWidth;
                         return (
                           <motion.div
-                            initial={{ opacity: 0, scale: 0.8 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ duration: 0.5 }}
+                            initial={{ opacity: 0, scale: 0.8, left: `${chartStartOffset}%` }}
+                            animate={{ 
+                              opacity: 1, 
+                              scale: 1,
+                              left: `${adjustedUserPosition}%`
+                            }}
+                            transition={{ 
+                              duration: 1.2,
+                              ease: "easeOut"
+                            }}
                             className="absolute z-50"
                             style={{ 
-                              left: `${adjustedUserPosition}%`,
                               top: '2px',
                               transform: 'translateX(-50%) translateY(-18px)',
                               pointerEvents: 'none'

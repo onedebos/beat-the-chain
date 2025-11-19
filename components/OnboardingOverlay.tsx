@@ -1,18 +1,117 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ComponentProps } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Root as ResizableRoot, Content as ResizableContent } from "./ResizablePanel";
 
 type OnboardingOverlayProps = {
   onComplete: (name: string) => void;
 };
 
+function Step({ step, currentStep }: { step: number; currentStep: number }) {
+  let status =
+    currentStep === step
+      ? "active"
+      : currentStep < step
+      ? "inactive"
+      : "complete";
+
+  return (
+    <motion.div animate={status} className="relative">
+      <motion.div
+        variants={{
+          active: {
+            scale: 1,
+            transition: {
+              delay: 0,
+              duration: 0.2,
+            },
+          },
+          complete: {
+            scale: 1.25,
+          },
+        }}
+        transition={{
+          duration: 0.6,
+          delay: 0.2,
+          type: "tween",
+          ease: "circOut",
+        }}
+        className="absolute inset-0 rounded-full"
+        style={{ backgroundColor: "#39ff9c20" }}
+      />
+      <motion.div
+        initial={false}
+        variants={{
+          inactive: {
+            backgroundColor: "transparent",
+            borderColor: "#4a5568", // dark-dim
+            color: "#4a5568",
+          },
+          active: {
+            backgroundColor: "transparent",
+            borderColor: "#39ff9c", // dark-highlight (Etherlink green)
+            color: "#39ff9c",
+          },
+          complete: {
+            backgroundColor: "#39ff9c",
+            borderColor: "#39ff9c",
+            color: "#000000",
+          },
+        }}
+        transition={{ duration: 0.2 }}
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 font-semibold"
+      >
+        <div className="flex items-center justify-center">
+          {status === "complete" && (
+            <CheckIcon className="h-6 w-6 text-black" />
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function CheckIcon(props: ComponentProps<"svg">) {
+  return (
+    <svg
+      {...props}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={3}
+    >
+      <motion.path
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{
+          delay: 0.2,
+          type: "tween",
+          ease: "easeOut",
+          duration: 0.3,
+        }}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5 13l4 4L19 7"
+      />
+    </svg>
+  );
+}
+
 export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
-  const [step, setStep] = useState<"info" | "name">("info");
+  const [step, setStep] = useState(1);
   const [name, setName] = useState("");
 
   const handleNext = () => {
-    setStep("name");
+    if (step < 2) {
+      setStep(step + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -36,22 +135,18 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4"
+        className="w-full max-w-5xl rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4"
       >
-        <AnimatePresence mode="wait">
-          {step === "info" && (
-            <motion.div
-              key="info"
-              initial={{ x: -20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 20, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
+        {/* Fixed height container for seamless transitions */}
+        <div className="relative h-[600px] overflow-hidden">
+          <ResizableRoot value={step.toString()}>
+            <ResizableContent value="1">
+              <div className="pb-5">
               <h1 className="text-4xl font-bold text-dark-highlight font-nfs text-center">
                 Proof of Speed
               </h1>
               
-              <h2 className="text-xl font-bold font-sedgwick text-center mt-4">
+              <h2 className="hidden text-xl font-bold font-sedgwick text-center mt-4">
                 Beat the speed of Etherlink's Sub-blocks
               </h2>
 
@@ -71,13 +166,13 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                     <i className="fa fa-tachometer h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
                     <span><span className="font-bold text-dark-main">Race the Pacer:</span> Type the full text before the green blocks are completely formed.</span>
                   </li>
-                  <li className="flex items-center">
+                  <li className="flex items-center hidden">
                     <i className="fa fa-bullseye h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
                     <span><span className="font-bold text-dark-main">Accuracy is Key:</span> Your Final Score is (LPS x Accuracy). Sloppy typing won't win.</span>
                   </li>
                   <li className="flex items-center">
                     <i className="fa fa-trophy h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                    <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed and accuracy. Faster and more accurate typing = better blockchain rank!</span>
+                    <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed and accuracy.</span>
                   </li>
                 </ol>
               </div>
@@ -101,26 +196,35 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                 </ul>
               </div>
 
-              <button
-                onClick={handleNext}
-                className="mt-8 mx-auto block rounded-full bg-dark-highlight py-3 px-6 text-lg font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer"
-              >
-                Next
-              </button>
-            </motion.div>
-          )}
+              <div className="mt-4 mb-4 flex justify-between">
+                <button
+                  onClick={handleBack}
+                  disabled={step === 1}
+                  className={`${
+                    step === 1 ? "pointer-events-none opacity-50" : ""
+                  } rounded-md px-4 py-2 text-sm font-bold text-dark-dim hover:text-dark-highlight font-mono transition-colors flex items-center gap-2`}
+                >
+                  <i className="fa-solid fa-arrow-left h-4 w-4" />
+                  <span className="font-mono">Back</span>
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="rounded-full border border-dark-dim/30 py-2 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer flex items-center justify-center"
+                  style={{ backgroundColor: "#39ff9c" }}
+                >
+                  <span className="font-mono mr-6">Continue</span>
+                  <i className="fa-solid fa-arrow-right h-4 w-4" />
+                </button>
+              </div>
+              </div>
+            </ResizableContent>
 
-          {step === "name" && (
-            <motion.form
-              key="name"
-              layout
-              initial={{ x: 20, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -20, opacity: 0 }}
-              transition={{ duration: 0.3, layout: { duration: 0.3, ease: "easeInOut" } }}
-              onSubmit={handleSubmit}
-              className="max-w-md mx-auto"
-            >
+            <ResizableContent value="2">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <form
+                  onSubmit={handleSubmit}
+                  className="max-w-md w-full"
+                >
               <h1 className="text-3xl font-bold text-dark-highlight font-nfs text-center">
                 What's your name?
               </h1>
@@ -135,7 +239,12 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                   onChange={(e) => setName(e.target.value)}
                   placeholder="adebola.xtz"
                   autoFocus
-                  className="w-full rounded-md border-2 border-dark-dim/50 bg-dark-bg p-4 pr-12 text-2xl font-bold text-dark-main font-mono placeholder:font-normal focus:border-dark-highlight focus:outline-none focus:ring-0"
+                  className="w-full rounded-md border-2 border-dark-dim/50 bg-dark-bg p-4 pr-12 text-2xl font-bold text-dark-main font-mono placeholder:font-normal focus:outline-none focus:ring-0 transition-colors"
+                  style={{ 
+                    borderColor: name.trim() && name.trim().length >= 3 ? "#39ff9c" : undefined
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = "#39ff9c"}
+                  onBlur={(e) => e.target.style.borderColor = ""}
                 />
                 <i className="fa fa-user absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 text-dark-dim" />
               </div>
@@ -154,16 +263,30 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                 )}
               </AnimatePresence>
 
-              <button
-                type="submit"
-                disabled={!name.trim() || name.trim().length < 3}
-                className="mt-6 mx-auto block rounded-full bg-dark-highlight py-3 px-6 text-lg font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Play
-              </button>
-            </motion.form>
-          )}
-        </AnimatePresence>
+              <div className="mt-6 flex justify-between">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="rounded-md px-4 py-2 text-sm font-bold text-dark-dim hover:text-dark-highlight font-mono transition-colors flex items-center gap-2"
+                >
+                  <i className="fa-solid fa-arrow-left h-4 w-4" />
+                  <span className="font-mono">Back</span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={!name.trim() || name.trim().length < 3}
+                  className="rounded-full border border-dark-dim/30 py-2 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  style={{ backgroundColor: "#39ff9c" }}
+                >
+                  <span className="font-mono mr-6">Play</span>
+                  <i className="fa-solid fa-play h-4 w-4" />
+                </button>
+              </div>
+                </form>
+              </div>
+            </ResizableContent>
+          </ResizableRoot>
+        </div>
       </motion.div>
     </motion.div>
   );
