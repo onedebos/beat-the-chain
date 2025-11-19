@@ -207,6 +207,7 @@ export default function Home() {
   const [testFinished, setTestFinished] = useState(false);
   const [results, setResults] = useState<Results>(DEFAULT_RESULTS);
   const [gameMode, setGameMode] = useState<GameMode>(15);
+  const [textFocused, setTextFocused] = useState(false);
 
   // NEW: State for overlay and player name
   const [showOverlay, setShowOverlay] = useState(false); // Will be set based on localStorage check
@@ -278,7 +279,7 @@ export default function Home() {
         letterSpan.style.fontSize = "32px";
         letterSpan.style.lineHeight = "1.5em";
         letterSpan.style.fontFamily = "monospace";
-        letterSpan.style.color = "#646669";
+        // Don't set inline color - let it inherit from parent, then Tailwind classes can override
         letterSpan.textContent = char;
         wordDiv.appendChild(letterSpan);
         letters.push(letterSpan);
@@ -289,7 +290,7 @@ export default function Home() {
         spaceSpan.style.fontSize = "32px";
         spaceSpan.style.lineHeight = "1.5em";
         spaceSpan.style.fontFamily = "monospace";
-        spaceSpan.style.color = "#646669";
+        // Don't set inline color - let it inherit from parent, then Tailwind classes can override
         spaceSpan.textContent = " ";
         wordDiv.appendChild(spaceSpan);
         letters.push(spaceSpan);
@@ -313,6 +314,7 @@ export default function Home() {
     setResults({ ...DEFAULT_RESULTS });
     setTestStarted(false);
     setTestFinished(false);
+    setTextFocused(false);
     setPacerResetKey(prev => prev + 1); // Force pacer squares to reset
     populateWords();
     
@@ -528,7 +530,11 @@ export default function Home() {
         if (stateRef.current.currentIndex > 0) {
           stateRef.current.currentIndex -= 1;
           const letter = stateRef.current.letterElements[stateRef.current.currentIndex];
-          letter?.classList.remove("text-dark-main", "text-dark-error", "underline");
+          if (letter) {
+            letter.classList.remove("text-dark-main", "text-dark-error", "underline");
+            // Remove inline color to allow parent color to show
+            letter.style.color = "";
+          }
           moveCursor(stateRef.current.currentIndex);
         }
         return;
@@ -537,6 +543,9 @@ export default function Home() {
       if (event.key.length === 1 && stateRef.current.currentIndex < stateRef.current.letterElements.length) {
         const currentLetter = stateRef.current.letterElements[stateRef.current.currentIndex];
         if (!currentLetter) return;
+
+        // Remove inline color so Tailwind classes can work
+        currentLetter.style.color = "";
 
         if (event.key === currentLetter.textContent) {
           currentLetter.classList.add("text-dark-main");
@@ -1044,7 +1053,24 @@ export default function Home() {
             <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono">
               <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block" />
               
-              <div id="words" ref={wordsRef} className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto opacity-20 transition-opacity duration-300 group-[.test-started]:opacity-100 font-mono" style={{ fontSize: "32px", lineHeight: "1.5em", color: "#646669" }} />
+              <div 
+                id="words" 
+                ref={wordsRef} 
+                className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto transition-all duration-300 font-mono cursor-text" 
+                style={{ 
+                  fontSize: "32px", 
+                  lineHeight: "1.5em", 
+                  color: "#646669",
+                  opacity: textFocused || testStarted ? 1 : 0.2
+                }}
+                onClick={() => {
+                  if (!testStarted && !testFinished) {
+                    setTextFocused(true);
+                    // Focus the app body to capture keyboard input
+                    appBodyRef.current?.focus();
+                  }
+                }}
+              />
               
               {gameMode === 60 ? (
                 <>
