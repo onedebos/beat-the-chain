@@ -24,6 +24,7 @@ const DEFAULT_RESULTS = {
   lps: "0",
   accuracy: "0%",
   rank: "",
+  speedComparison: "",
   time: "",
   msPerLetter: "0",
   comparison: "0",
@@ -53,6 +54,7 @@ type Results = {
   lps: string;
   accuracy: string;
   rank: string;
+  speedComparison: string; // For "You were as fast as" display (based on pure speed)
   time: string;
   msPerLetter: string;
   comparison: string;
@@ -348,29 +350,34 @@ export default function Home() {
     const msPerLetter = durationMs / lettersCount;
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
-    // Rank based on typing speed AND accuracy
-    // Adjust effective msPerLetter based on accuracy to penalize errors
-    // Lower accuracy = higher effective msPerLetter (worse rank)
-    // Formula: effectiveMsPerLetter = msPerLetter / (accuracyDecimal ^ accuracyWeight)
-    // Using accuracyWeight of 2 means accuracy is weighted more heavily
-    const accuracyWeight = 2;
-    const effectiveMsPerLetter = msPerLetter / Math.pow(accuracyDecimal, accuracyWeight);
-    
+    // "You were as fast as" is based purely on speed (msPerLetter) - not accuracy-adjusted
     // Categories: Sub-blocks (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
-    // Rank is determined by effective speed which accounts for accuracy
-    let rank = "Bitcoin";
-    if (effectiveMsPerLetter <= 200) rank = "Sub-blocks";
-    else if (effectiveMsPerLetter <= 400) rank = "Solana";
-    else if (effectiveMsPerLetter <= 1000) rank = "ETH L2s";
-    else if (effectiveMsPerLetter <= 2000) rank = "Polygon";
-    else if (effectiveMsPerLetter <= 12000) rank = "Ethereum Mainnet";
-    else rank = "Bitcoin";
+    let speedComparison = "Bitcoin";
+    if (msPerLetter <= 200) speedComparison = "Sub-blocks";
+    else if (msPerLetter <= 400) speedComparison = "Solana";
+    else if (msPerLetter <= 1000) speedComparison = "ETH L2s";
+    else if (msPerLetter <= 2000) speedComparison = "Polygon";
+    else if (msPerLetter <= 12000) speedComparison = "Ethereum Mainnet";
+    else speedComparison = "Bitcoin";
+    
+    // Rank is based on score (6 levels)
+    // Score already factors in both speed and accuracy: finalScore = lettersPerSecond * (accuracyDecimal ^ 2)
+    // Determine rank (1-6) based on score
+    // Placeholder logic - will be updated with actual thresholds later
+    let rank = "Rank 6";
+    if (finalScore >= 20) rank = "Rank 1";
+    else if (finalScore >= 15) rank = "Rank 2";
+    else if (finalScore >= 10) rank = "Rank 3";
+    else if (finalScore >= 5) rank = "Rank 4";
+    else if (finalScore >= 2) rank = "Rank 5";
+    else rank = "Rank 6";
 
     const resultsData = {
       score: finalScore.toFixed(2),
       lps: lettersPerSecond.toFixed(2),
       accuracy: `${Math.max(accuracy, 0).toFixed(1)}%`,
       rank,
+      speedComparison, // For "You were as fast as" display
       time: `${durationSec.toFixed(2)}s`,
       msPerLetter: msPerLetter.toFixed(0),
       comparison: `${comparisonMs > 0 ? "+" : ""}${comparisonMs.toFixed(0)}`,
@@ -428,7 +435,7 @@ export default function Home() {
 
   // Trigger confetti if user is faster than Sub-blocks
   useEffect(() => {
-    if (testFinished && results.rank === "Sub-blocks") {
+    if (testFinished && results.speedComparison === "Sub-blocks") {
       const msPerLetter = parseFloat(results.msPerLetter) || 0;
       if (msPerLetter < 200 && confettiRef.current) {
         setTimeout(() => {
@@ -436,7 +443,7 @@ export default function Home() {
         }, 500);
       }
     }
-  }, [testFinished, results.rank, results.msPerLetter]);
+  }, [testFinished, results.speedComparison, results.msPerLetter]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -696,6 +703,10 @@ export default function Home() {
           backgroundColor: null,
           scale: 2, // Higher quality
           logging: false,
+          useCORS: true,
+          allowTaint: false,
+          windowWidth: resultsScreenRef.current?.scrollWidth,
+          windowHeight: resultsScreenRef.current?.scrollHeight,
         });
         
         // Convert canvas to blob and then to File
@@ -877,10 +888,10 @@ export default function Home() {
                   How to Play
                 </button>
                 <div className="relative">
-                  <button
-                    onClick={() => {
+              <button
+                onClick={() => {
                       // Toggle user profile menu
-                      if (playerName && playerName !== "you") {
+                  if (playerName && playerName !== "you") {
                         // Fetch all scores for all game modes
                         getAllUserScores(playerName).then((result) => {
                           if (result.data && result.data.length > 0) {
@@ -890,46 +901,46 @@ export default function Home() {
                               current.score > best.score ? current : best
                             );
                             setUserProfile(bestScore);
-                          } else {
+                        } else {
                             setAllUserScores([]);
-                            setUserProfile(null);
-                          }
-                          setShowUserMenu(!showUserMenu);
-                        });
-                      } else {
+                          setUserProfile(null);
+                        }
+                        setShowUserMenu(!showUserMenu);
+                      });
+                    } else {
                         // Still toggle the dropdown even if no player name
                         setAllUserScores([]);
-                        setUserProfile(null);
-                        setShowUserMenu(!showUserMenu);
-                      }
-                    }}
+                      setUserProfile(null);
+                      setShowUserMenu(!showUserMenu);
+                  }
+                }}
                     className="text-dark-dim hover:text-dark-highlight transition-colors cursor-pointer text-left"
                     title="Settings"
-                  >
+              >
                     Settings
-                  </button>
-                  {/* User Profile Dropdown */}
-                  <AnimatePresence>
+              </button>
+              {/* User Profile Dropdown */}
+              <AnimatePresence>
                     {showUserMenu && (
-                      <motion.div
-                        ref={userMenuRef}
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.1 }}
+                  <motion.div
+                    ref={userMenuRef}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.1 }}
                         className="absolute top-full mt-2 w-64 rounded-lg bg-dark-kbd border border-dark-dim/20 shadow-2xl z-50 overflow-hidden"
                         style={{ 
                           right: 0,
                           transform: 'translateX(0)',
                           maxWidth: 'min(256px, calc(100vw - 3rem))'
                         }}
-                      >
-                        <div className="p-4 space-y-3 font-mono">
+                  >
+                    <div className="p-4 space-y-3 font-mono">
                           {playerName && playerName !== "you" && (
-                            <div className="border-b border-dark-dim/20 pb-3">
-                              <div className="text-sm text-dark-dim mb-1">name</div>
-                              <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
-                            </div>
+                      <div className="border-b border-dark-dim/20 pb-3">
+                        <div className="text-sm text-dark-dim mb-1">name</div>
+                        <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
+                      </div>
                           )}
                           {allUserScores.length > 0 ? (
                             <>
@@ -938,43 +949,43 @@ export default function Home() {
                                   <div key={score.game_mode} className="flex items-center justify-between">
                                     <div className="text-xs text-dark-dim">
                                       {score.game_mode} words
-                                    </div>
+                            </div>
                                     <div className="text-sm font-bold text-dark-main">
                                       {score.lps.toFixed(2)} lps
-                                    </div>
-                                  </div>
+                            </div>
+                            </div>
                                 ))}
-                              </div>
+                            </div>
                               {userProfile && (
                                 <div className="border-t border-dark-dim/20 pt-3 mt-3 space-y-2">
                                   <div className="flex items-center justify-between">
                                     <div className="text-xs text-dark-dim">best rank</div>
                                     <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
-                                  </div>
+                          </div>
                                   <div className="flex items-center justify-between">
                                     <div className="text-xs text-dark-dim">best score</div>
                                     <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
-                                  </div>
-                                </div>
+                          </div>
+                        </div>
                               )}
                             </>
                           ) : (
                             <div className="text-sm text-dark-dim">No scores yet</div>
-                          )}
-                          <div className="border-t border-dark-dim/20 pt-3 mt-3">
-                            <button
-                              onClick={handleResetPlayer}
-                              className="w-full px-3 py-2 rounded-md bg-dark-bg hover:bg-dark-highlight hover:text-black text-dark-main text-sm font-mono transition-colors"
-                            >
+                      )}
+                      <div className="border-t border-dark-dim/20 pt-3 mt-3">
+                        <button
+                          onClick={handleResetPlayer}
+                          className="w-full px-3 py-2 rounded-md bg-dark-bg hover:bg-dark-highlight hover:text-black text-dark-main text-sm font-mono transition-colors"
+                        >
                               <i className="fa-solid fa-rotate mr-2" />
-                              Reset player
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                          Reset player
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
               </div>
             </div>
             <a
@@ -991,11 +1002,11 @@ export default function Home() {
           </nav>
         </header>
 
-        <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4">
+        <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4 group-[.test-finished]:-mt-5">
           <div className="text-center">
             <span className="font-nfs text-[2.8125rem] text-dark-highlight">Proof of Speed</span>
           </div>
-          <div className="flex items-center space-x-6 rounded-lg bg-dark-kbd p-2 text-sm font-mono">
+          <div className="flex items-center space-x-6 rounded-lg bg-dark-kbd p-2 text-sm font-mono group-[.test-finished]:hidden">
             <button className="flex items-center space-x-1 text-dark-highlight hover:text-dark-highlight transition-colors" title="Words">
               <i className="fa-solid fa-hashtag h-4 w-4" />
               <span className="lowercase tracking-wider">words</span>
@@ -1064,15 +1075,15 @@ export default function Home() {
         </div>
 
         <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
-            <button
-              id="language-btn"
-              className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors ${
+          <button
+            id="language-btn"
+              className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors group-[.test-finished]:hidden ${
                 testStarted ? 'text-dark-dim hover:text-dark-highlight' : 'text-dark-highlight'
               }`}
-            >
+          >
               <i className="fa-solid fa-globe h-4 w-4" />
               <span>Click or press the first letter to begin</span>
-            </button>
+          </button>
           
           <div
             id="test-area"
@@ -1161,7 +1172,7 @@ export default function Home() {
               </div>
 
               {/* Column 3: Real Leaderboard */}
-              <div className="flex flex-col space-y-2">
+              <div className="flex flex-col space-y-2 pb-2">
                 <div className="text-lg text-dark-dim text-left">rankings (words: {gameMode})</div>
                 {rankingsLoading ? (
                   <div className="text-sm text-dark-dim">Loading...</div>
@@ -1176,9 +1187,9 @@ export default function Home() {
                         ? "text-dark-main" 
                         : "text-dark-dim";
                     return (
-                      <div key={entry.id} className={`flex justify-between text-xl ${textColor}`}>
-                        <span className="truncate mr-2">{idx + 1}. {entry.player_name}</span>
-                        <span className="flex-shrink-0">{entry.score.toFixed(2)}</span>
+                      <div key={entry.id} className={`flex justify-between text-xl ${textColor}`} style={{ lineHeight: '1.6', minHeight: '1.75rem', paddingBottom: '0.125rem' }}>
+                        <span className="truncate mr-2" style={{ lineHeight: '1.6', display: 'inline-block' }}>{idx + 1}. {entry.player_name}</span>
+                        <span className="flex-shrink-0" style={{ lineHeight: '1.6' }}>{entry.score.toFixed(2)}</span>
                       </div>
                     );
                   })
@@ -1191,17 +1202,27 @@ export default function Home() {
               <div className="text-center mb-6">
                 {(() => {
                   const msPerLetter = parseFloat(results.msPerLetter) || 0;
-                  const isFasterThanSubblocks = msPerLetter < 200 && results.rank === "Sub-blocks";
+                  const isFasterThanSubblocks = msPerLetter < 200 && results.speedComparison === "Sub-blocks";
                   
                   return (
-                    <>
-                      <div className="text-lg text-dark-dim mb-2">
-                        {isFasterThanSubblocks ? "You were faster than" : "You were as fast as"}
+                    <div className="flex items-center justify-center gap-8 flex-wrap">
+                      <div>
+                        <div className="text-lg text-dark-dim mb-2">
+                          {isFasterThanSubblocks ? "You were faster than" : "You were as fast as"}
+                        </div>
+                        <div id="result-speed-comparison" className="text-3xl font-bold font-nfs text-dark-highlight">
+                          {results.speedComparison}
+                        </div>
                       </div>
-                      <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight mb-6">
-                  {results.rank}
-                </div>
-                    </>
+                      <div>
+                        <div className="text-lg text-dark-dim mb-2">
+                          Your Rank
+                        </div>
+                        <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight">
+                          {results.rank}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })()}
               </div>
@@ -1568,7 +1589,7 @@ export default function Home() {
         </main>
 
         <Footer />
-      </div>
+            </div>
 
       {/* How to Play Overlay */}
       <AnimatePresence>
@@ -1601,7 +1622,7 @@ export default function Home() {
                   <p className="mt-2 text-dark-dim">
                     We built this game to help you feel that speed. The pacer bar moves at 200ms per letter. Your goal is to beat it.
                   </p>
-                </div>
+            </div>
 
                 <div className="mt-6 text-dark-main font-mono">
                   <h2 className="text-xl font-bold">How to Win</h2>
@@ -1615,16 +1636,16 @@ export default function Home() {
                       <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed and accuracy.</span>
                     </li>
                   </ol>
-                </div>
+            </div>
 
                 <div className="mt-6 rounded-lg border border-dark-dim/30 bg-dark-bg/50 p-4 text-sm font-mono">
                   <div className="text-dark-main">
                     <div className="mb-1">
                       <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
-                    </div>
+          </div>
                     <div className="text-dark-dim">
                       Your typing speed determines which blockchain you match. Can you beat <a href="https://etherlink.com" target="_blank" rel="noopener noreferrer" className="text-dark-highlight hover:underline">Etherlink</a> Sub-block's 200ms speed?
-                    </div>
+      </div>
                   </div>
                   <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
                     <li><span className="font-bold text-dark-main">Etherlink/Base/Unichain:</span> 150-200ms / letter (Lightning fast!)</li>
