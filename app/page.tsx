@@ -138,9 +138,10 @@ interface PacerSquaresProps {
   totalLetters: number;
   testActive: boolean;
   speedMs: number;
+  gameMode?: number;
 }
 
-const PacerSquares = ({ totalLetters, testActive, speedMs }: PacerSquaresProps) => {
+const PacerSquares = ({ totalLetters, testActive, speedMs, gameMode }: PacerSquaresProps) => {
   const [visibleSquares, setVisibleSquares] = useState<number[]>([]);
   
   useEffect(() => {
@@ -165,8 +166,12 @@ const PacerSquares = ({ totalLetters, testActive, speedMs }: PacerSquaresProps) 
     };
   }, [testActive, totalLetters, speedMs]);
   
+  // Adjust positioning and gap based on game mode
+  const bottomOffset = gameMode === 60 ? '-28px' : gameMode === 30 ? '-24px' : '-20px';
+  const gapSize = gameMode === 60 ? '0.0625rem' : gameMode === 30 ? '0.125rem' : '0.25rem'; // Smaller gap for more words
+  
   return (
-    <div className="absolute bottom-[-20px] left-0 right-0 flex flex-wrap gap-1 justify-start items-center">
+    <div className="absolute left-0 right-0 flex flex-wrap justify-start items-center z-0" style={{ bottom: bottomOffset, gap: gapSize }}>
       <AnimatePresence initial={false}>
         {visibleSquares.map((index) => (
           <motion.div
@@ -190,8 +195,8 @@ const PacerSquares = ({ totalLetters, testActive, speedMs }: PacerSquaresProps) 
               scale: { type: "spring", duration: 0.4, bounce: 0.5 }
             }}
             style={{
-              width: 20,
-              height: 20,
+              width: gameMode === 60 ? 12 : gameMode === 30 ? 16 : 20,
+              height: gameMode === 60 ? 12 : gameMode === 30 ? 16 : 20,
               opacity: 0.5,
             }}
           />
@@ -229,7 +234,6 @@ export default function Home() {
   const appBodyRef = useRef<HTMLDivElement>(null);
   const wordsRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLDivElement>(null);
-  const subBlockBarRef = useRef<HTMLDivElement>(null);
   const confettiRef = useRef<ConfettiRef>(null);
   const resultsScreenRef = useRef<HTMLDivElement>(null);
 
@@ -319,12 +323,6 @@ export default function Home() {
     setTextFocused(false);
     setPacerResetKey(prev => prev + 1); // Force pacer squares to reset
     populateWords();
-    
-    // Reset pacer bar for 60 words mode
-    if (subBlockBarRef.current && gameMode === 60) {
-      subBlockBarRef.current.style.transition = 'none';
-      subBlockBarRef.current.style.width = '0%';
-    }
 
     requestAnimationFrame(() => moveCursor(0));
   }, [moveCursor, populateWords, gameMode]);
@@ -335,20 +333,6 @@ export default function Home() {
     stateRef.current.startTime = performance.now();
     setTestStarted(true);
     setTestFinished(false);
-
-    // Animate pacer bar for 60 words mode
-    if (subBlockBarRef.current && gameMode === 60) {
-      const totalLetters = stateRef.current.totalLetters;
-      const subBlockDuration = (totalLetters * SUB_BLOCK_SPEED_MS) / 1000;
-      
-      // Apply dynamic duration and trigger animation
-      subBlockBarRef.current.style.transition = `width ${subBlockDuration}s linear`;
-      
-      // We must force a reflow for the new duration to apply before changing width
-      void subBlockBarRef.current.offsetWidth; 
-      
-      subBlockBarRef.current.style.width = '100%';
-    }
   }, [gameMode]); // Note: This function depends on gameMode
 
   const endGame = useCallback(() => {
@@ -929,12 +913,12 @@ export default function Home() {
                           current.score > best.score ? current : best
                         );
                         setUserProfile(bestScore);
-                      } else {
+                        } else {
                         setAllUserScores([]);
-                        setUserProfile(null);
-                      }
-                      setShowUserMenu(!showUserMenu);
-                    });
+                          setUserProfile(null);
+                        }
+                        setShowUserMenu(!showUserMenu);
+                      });
                     } else {
                       // Still toggle the dropdown even if no player name
                       setAllUserScores([]);
@@ -965,10 +949,10 @@ export default function Home() {
                   >
                     <div className="p-4 space-y-3 font-mono">
                       {playerName && playerName !== "you" && (
-                        <div className="border-b border-dark-dim/20 pb-3">
-                          <div className="text-sm text-dark-dim mb-1">name</div>
-                          <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
-                        </div>
+                      <div className="border-b border-dark-dim/20 pb-3">
+                        <div className="text-sm text-dark-dim mb-1">name</div>
+                        <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
+                      </div>
                       )}
                       {allUserScores.length > 0 ? (
                         <>
@@ -977,24 +961,24 @@ export default function Home() {
                               <div key={score.game_mode} className="flex items-center justify-between">
                                 <div className="text-xs text-dark-dim">
                                   {score.game_mode} words
-                                </div>
+                            </div>
                                 <div className="text-sm font-bold text-dark-main">
                                   {score.lps.toFixed(2)} lps
-                                </div>
-                              </div>
+                            </div>
+                            </div>
                             ))}
-                          </div>
+                            </div>
                           {userProfile && (
                             <div className="border-t border-dark-dim/20 pt-3 mt-3 space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="text-xs text-dark-dim">best rank</div>
                                 <div className="text-sm font-bold text-dark-main">{userProfile.rank}</div>
-                              </div>
+                          </div>
                               <div className="flex items-center justify-between">
                                 <div className="text-xs text-dark-dim">best score</div>
                                 <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
-                              </div>
-                            </div>
+                          </div>
+                        </div>
                           )}
                         </>
                       ) : (
@@ -1013,7 +997,7 @@ export default function Home() {
                   </motion.div>
                 )}
               </AnimatePresence>
-              </div>
+            </div>
               </div>
             </div>
             <a
@@ -1034,10 +1018,6 @@ export default function Home() {
             <span className="font-nfs text-[2.8125rem] text-dark-highlight">Proof of Speed</span>
           </div>
           <div className="flex items-center space-x-6 rounded-lg bg-dark-kbd p-2 text-sm font-mono">
-            <button className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors" title="Time">
-              <i className="fa-solid fa-clock h-4 w-4" />
-              <span className="lowercase tracking-wider">time</span>
-            </button>
             <button className="flex items-center space-x-1 text-dark-highlight hover:text-dark-highlight transition-colors" title="Words">
               <i className="fa-solid fa-hashtag h-4 w-4" />
               <span className="lowercase tracking-wider">words</span>
@@ -1120,16 +1100,16 @@ export default function Home() {
             onClick={() => appBodyRef.current?.focus()}
           >
             <div id="focus-message" className="absolute z-10 cursor-pointer text-lg font-mono group-[.test-started]:hidden">
-              Click here or press any key to focus
+              Click or press the first letter to begin
             </div>
             
-            <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono">
-              <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block" />
+            <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono" style={{ paddingBottom: gameMode === 60 ? '4rem' : gameMode === 30 ? '3rem' : '2rem' }}>
+              <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block z-10" />
               
               <div 
                 id="words" 
                 ref={wordsRef} 
-                className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto transition-all duration-300 font-mono cursor-text" 
+                className="max-w-5xl min-h-[12.5rem] flex flex-wrap content-start overflow-y-auto transition-all duration-300 font-mono cursor-text relative z-10" 
                 style={{ 
                   fontSize: "32px", 
                   lineHeight: "1.5em", 
@@ -1145,33 +1125,17 @@ export default function Home() {
                 }}
               />
               
-              {gameMode === 60 ? (
-                <>
-                  <div 
-                    id="sub-block-bar" 
-                    ref={subBlockBarRef}
-                    className="absolute bottom-[-20px] left-0 h-[2px] w-0 bg-dark-highlight opacity-50"
-                  />
-                  {testStarted && (
-                    <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
-                      Creating Sub-blocks in &lt;200ms on Etherlink.......
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
                   <PacerSquares 
                     key={pacerResetKey}
                     totalLetters={totalLetters}
                     testActive={testStarted}
                     speedMs={SUB_BLOCK_SPEED_MS}
+                gameMode={gameMode}
                   />
                   {testStarted && (
                     <div className="absolute bottom-[-40px] left-0 text-sm text-dark-dim font-mono">
                       Creating Sub-blocks in &lt;200ms on Etherlink.......
                     </div>
-                  )}
-                </>
               )}
             </div>
           </div>
@@ -1586,7 +1550,7 @@ export default function Home() {
                 className="cursor text-lg text-dark-dim hover:text-dark-highlight font-mono lowercase tracking-wider transition-colors flex items-center"
               >
                 <i className="fa-solid fa-rotate h-4 w-4" />
-                <span className="ml-1">restart</span>
+                <span className="ml-1">Play Again</span>
               </button>
               <Link
                 href="/leaderboard"
