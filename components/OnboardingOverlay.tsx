@@ -7,6 +7,7 @@ import useMeasure from "react-use-measure";
 
 type OnboardingOverlayProps = {
   onComplete: (name: string) => void;
+  onSignInWithTwitter?: () => void;
 };
 
 function Step({ step, currentStep }: { step: number; currentStep: number }) {
@@ -99,7 +100,7 @@ function CheckIcon(props: ComponentProps<"svg">) {
   );
 }
 
-export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps) {
+export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: OnboardingOverlayProps) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");
   const [errorRef, errorBounds] = useMeasure();
@@ -119,18 +120,15 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    // Remove @ if user included it
-    const cleanHandle = trimmedName.startsWith('@') ? trimmedName.slice(1) : trimmedName;
-    // Validate X handle according to X's rules:
-    // - 1-15 characters
-    // - Can include underscores (_) for separation
-    // - Can start/end with underscore or alphanumeric
-    // - Cannot contain hyphens (-), periods (.), special characters
-    // - Cannot be solely numeric
-    const handleRegex = /^[a-zA-Z0-9_]{1,15}$/;
-    const isOnlyNumeric = /^\d+$/.test(cleanHandle);
-    if (cleanHandle && handleRegex.test(cleanHandle) && !isOnlyNumeric) {
-      onComplete(cleanHandle);
+    // Minimum 4 characters
+    if (trimmedName.length >= 4) {
+      onComplete(trimmedName);
+    }
+  };
+
+  const handleSignInWithTwitter = () => {
+    if (onSignInWithTwitter) {
+      onSignInWithTwitter();
     }
   };
 
@@ -164,10 +162,10 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
 
               <div className="mt-6 text-dark-main font-mono">
                 <p className="mt-2 text-dark-dim">
-                  Etherlink's new <span className="font-bold text-dark-main">sub-blocks</span> are so fast, they can lock in transactions in <span className="font-bold text-dark-main">&lt;=200 milliseconds</span>.
+                  Etherlink's new <span className="font-bold text-dark-main">sub-block latency</span> feature gives developers super-fast confirmation — around <span className="font-bold text-dark-main">10–20 milliseconds</span> — so they instantly know their transaction will make it into the next block.
                 </p>
                 <p className="mt-2 text-dark-dim">
-                  We built this game to help you feel that speed. The pacer blocks move at 200ms. Your goal is to beat it.
+                  We built this game to help you feel that speed. The pacer blocks move at 20ms. Your goal is to beat it.
                 </p>
               </div>
 
@@ -195,11 +193,12 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                     <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
                   </div>
                   <div className="text-dark-dim">
-                    Your typing speed determines which blockchain you match. Can you beat Etherlink Sub-block's 200ms?
+                    Your typing speed determines which blockchain you match. Can you beat Etherlink Sub-block's 20ms?
                   </div>
                 </div>
                 <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
-                  <li><span className="font-bold text-dark-main">Etherlink/Base/Unichain:</span> 150-200ms / letter (Lightning fast!)</li>
+                  <li><span className="font-bold text-dark-main">Etherlink:</span> &lt;=20ms / letter (Lightning fast!)</li>
+                  <li><span className="font-bold text-dark-main">Base/Unichain:</span> 200ms / letter (Super fast!)</li>
                   <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms / letter (Super fast!)</li>
                   <li><span className="font-bold text-dark-main">ETH Layer2s:</span> 401-1000ms / letter (Fast!)</li>
                   <li><span className="font-bold text-dark-main">Polygon:</span> 1001-2000ms / letter (Quick!)</li>
@@ -233,79 +232,94 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
 
             <ResizableContent value="2">
               <div className="absolute inset-0 flex items-center justify-center">
-                <form
-                  onSubmit={handleSubmit}
-                  className="max-w-md w-full"
-                >
+                <div className="max-w-md w-full">
               <h1 className="text-3xl font-bold text-dark-highlight font-nfs text-center">
-                What's your X handle?
+                What's your name?
               </h1>
               <p className="text-center text-dark-dim mt-2 font-mono">
-                Enter your X (Twitter) handle to appear on the leaderboard.
+                Enter your name or sign in with Twitter to appear on the leaderboard.
               </p>
 
-              <div className="relative mt-6">
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="@adebola.xtz"
-                  autoFocus
-                  className="w-full rounded-md border-2 border-dark-dim/50 bg-dark-bg p-4 pr-12 text-2xl font-bold text-dark-main font-mono placeholder:font-normal focus:outline-none focus:ring-0 transition-colors"
-                  style={{ 
-                    borderColor: (() => {
-                      const trimmed = name.trim();
-                      const cleanHandle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
-                      const handleRegex = /^[a-zA-Z0-9_]{1,15}$/;
-                      const isOnlyNumeric = /^\d+$/.test(cleanHandle);
-                      return cleanHandle && handleRegex.test(cleanHandle) && !isOnlyNumeric ? "#39ff9c" : undefined;
-                    })()
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = "#39ff9c"}
-                  onBlur={(e) => e.target.style.borderColor = ""}
-                />
-                <i className="fa-brands fa-x-twitter absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 text-dark-dim" />
-              </div>
-              
-              <motion.div
-                animate={{ height: errorBounds.height > 0 ? errorBounds.height : 0 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                style={{ overflow: "hidden" }}
-              >
-                <div ref={errorRef} style={{ paddingBottom: "0.25rem" }}>
-                  <AnimatePresence>
-                    {(() => {
-                      const trimmed = name.trim();
-                      const cleanHandle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
-                      const handleRegex = /^[a-zA-Z0-9_]{1,15}$/;
-                      const isOnlyNumeric = /^\d+$/.test(cleanHandle);
-                      const isValid = cleanHandle && handleRegex.test(cleanHandle) && !isOnlyNumeric;
-                      const hasError = trimmed && !isValid;
-                      
-                      return hasError ? (
-                        <motion.p
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.2 }}
-                          className="text-center text-dark-dim mt-2 text-sm font-mono"
-                          style={{ lineHeight: "1.6", paddingBottom: "0.125rem" }}
-                        >
-                          Enter a valid X handle
-                        </motion.p>
-                      ) : null;
-                    })()}
-                  </AnimatePresence>
+              <div className="mt-8 space-y-4">
+                {/* Name Input */}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
+                      autoFocus
+                      className="w-full rounded-md border-2 border-dark-dim/50 bg-dark-bg p-4 text-2xl font-bold text-dark-main font-mono placeholder:font-normal focus:outline-none focus:ring-0 transition-colors"
+                      style={{ 
+                        borderColor: name.trim().length >= 4 ? "#39ff9c" : undefined
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = "#39ff9c"}
+                      onBlur={(e) => e.target.style.borderColor = name.trim().length >= 4 ? "#39ff9c" : ""}
+                    />
+                  </div>
+                  
+                  <motion.div
+                    animate={{ height: errorBounds.height > 0 ? errorBounds.height : 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div ref={errorRef} style={{ paddingBottom: "0.25rem" }}>
+                      <AnimatePresence>
+                        {(() => {
+                          const trimmed = name.trim();
+                          const hasError = trimmed && trimmed.length < 4;
+                          
+                          return hasError ? (
+                            <motion.p
+                              initial={{ opacity: 0, y: -10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                              transition={{ duration: 0.2 }}
+                              className="text-center text-dark-dim mt-2 text-sm font-mono"
+                              style={{ lineHeight: "1.6", paddingBottom: "0.125rem" }}
+                            >
+                              Name must be at least 4 characters
+                            </motion.p>
+                          ) : null;
+                        })()}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+
+                  <button
+                    type="submit"
+                    disabled={name.trim().length < 4}
+                    className="w-full rounded-full border border-dark-dim/30 py-3 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    style={{ backgroundColor: "#39ff9c" }}
+                  >
+                    <span className="font-mono">Play with Name</span>
+                  </button>
+                </form>
+
+                {/* Divider */}
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-dark-dim/30"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-dark-kbd text-dark-dim font-mono">or</span>
+                  </div>
                 </div>
-              </motion.div>
 
-              <div className="mt-4">
-                <p className="text-center text-dark-dim text-sm font-mono">
-                  You must share your score to be eligible for a prize.
-                </p>
+                {/* Twitter Sign In */}
+                <button
+                  type="button"
+                  onClick={handleSignInWithTwitter}
+                  className="w-full rounded-full border border-dark-dim/30 py-3 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-3"
+                  style={{ backgroundColor: "#39ff9c" }}
+                >
+                  <i className="fa-brands fa-x-twitter h-5 w-5" />
+                  <span>Sign in with Twitter</span>
+                </button>
               </div>
 
-              <div className="mt-6 flex justify-between">
+              <div className="mt-6 flex justify-start">
                 <button
                   type="button"
                   onClick={handleBack}
@@ -314,23 +328,8 @@ export default function OnboardingOverlay({ onComplete }: OnboardingOverlayProps
                   <i className="fa-solid fa-arrow-left h-4 w-4" />
                   <span className="font-mono">Back</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={(() => {
-                    const trimmed = name.trim();
-                    const cleanHandle = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
-                    const handleRegex = /^[a-zA-Z0-9_]{1,15}$/;
-                    const isOnlyNumeric = /^\d+$/.test(cleanHandle);
-                    return !trimmed || !handleRegex.test(cleanHandle) || isOnlyNumeric;
-                  })()}
-                  className="rounded-full border border-dark-dim/30 py-2 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                  style={{ backgroundColor: "#39ff9c" }}
-                >
-                  <span className="font-mono mr-6">Play</span>
-                  <i className="fa-solid fa-play h-4 w-4" />
-                </button>
               </div>
-                </form>
+                </div>
               </div>
             </ResizableContent>
           </ResizableRoot>

@@ -12,11 +12,13 @@ import OnboardingOverlay from "../components/OnboardingOverlay";
 import CountUp from "../components/CountUp";
 import { Confetti, type ConfettiRef } from "../components/Confetti";
 import Footer from "../components/Footer";
+import { supabase } from "../lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 
 
 // --- GAME CONSTANTS ---
-const SUB_BLOCK_SPEED_MS = 200;
+const SUB_BLOCK_SPEED_MS = 20;
 const GAME_MODES = [15, 30, 60] as const; // Word counts
 type GameMode = typeof GAME_MODES[number];
 // Removed accuracy threshold - all players get ranks based on speed
@@ -279,6 +281,9 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<LeaderboardEntry | null>(null);
   const [allUserScores, setAllUserScores] = useState<LeaderboardEntry[]>([]);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  // Twitter auth state
+  const [twitterUser, setTwitterUser] = useState<User | null>(null);
+  const [isTwitterAuth, setIsTwitterAuth] = useState(false);
   const [hoveredMode, setHoveredMode] = useState<number | null>(null);
   const [animatedNumber, setAnimatedNumber] = useState<number | null>(null);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -411,9 +416,9 @@ export default function Home() {
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
     // "You were as fast as" is based purely on speed (msPerLetter) - not accuracy-adjusted
-    // Categories: Sub-blocks (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
+    // Categories: Sub-blocks (20ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
     let speedComparison = "Bitcoin";
-    if (msPerLetter <= 200) speedComparison = "Sub-blocks";
+    if (msPerLetter <= 20) speedComparison = "Sub-blocks";
     else if (msPerLetter <= 400) speedComparison = "Solana";
     else if (msPerLetter <= 1000) speedComparison = "ETH L2s";
     else if (msPerLetter <= 2000) speedComparison = "Polygon";
@@ -721,11 +726,153 @@ export default function Home() {
     }
   }, [bannerVisible]);
 
+  // Check for Twitter auth session and OAuth callback
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      // Check for OAuth callback code in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const error = urlParams.get("error");
+
+      if (error) {
+        console.error("OAuth error:", error);
+        // Clean up URL
+        window.history.replaceState({}, "", window.location.pathname);
+      } else if (code) {
+        // console.log("Exchanging code for session:", code);
+        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        // console.log("Code exchange result:", { data, error: exchangeError });
+        
+        if (exchangeError) {
+          console.error("Error exchanging code:", exchangeError);
+        } else if (data?.user) {
+          // Get Twitter handle from metadata
+          const twitterHandle = data.user.user_metadata?.user_name;
+          if (twitterHandle) {
+            // Immediately close overlay first to prevent flickering
+            setShowOverlay(false);
+            
+            setTwitterUser(data.user);
+            setIsTwitterAuth(true);
+            setPlayerName(twitterHandle);
+            setStoredPlayerName(twitterHandle);
+            localStorage.setItem("is_twitter_auth", "true");
+            
+            // Restore user data from database if available
+            const hasData = await restoreUserDataFromDB(twitterHandle);
+            if (hasData) {
+              const profile = getUserProfile(twitterHandle);
+              if (profile.hasProfile && profile.bestGameMode) {
+                const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
+                if (result.data) {
+                  setUserProfile(result.data);
+                }
+              }
+            }
+            
+            // Focus the game window
+            requestAnimationFrame(() => appBodyRef.current?.focus());
+          }
+        }
+        
+        // Clean up URL
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+
+    handleAuthCallback();
+
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        const twitterHandle = session.user.user_metadata?.user_name;
+        if (twitterHandle) {
+          setTwitterUser(session.user);
+          setIsTwitterAuth(true);
+          const storedIsTwitter = localStorage.getItem("is_twitter_auth") === "true";
+          if (storedIsTwitter) {
+            setPlayerName(twitterHandle);
+            setStoredPlayerName(twitterHandle);
+          }
+        }
+      }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const twitterHandle = session.user.user_metadata?.user_name;
+        if (twitterHandle) {
+          // Immediately close overlay if it's open during auth state change
+          setShowOverlay(false);
+          
+          setTwitterUser(session.user);
+          setIsTwitterAuth(true);
+          setPlayerName(twitterHandle);
+          setStoredPlayerName(twitterHandle);
+          localStorage.setItem("is_twitter_auth", "true");
+          
+          // Restore user data from database if available
+          const hasData = await restoreUserDataFromDB(twitterHandle);
+          if (hasData) {
+            const profile = getUserProfile(twitterHandle);
+            if (profile.hasProfile && profile.bestGameMode) {
+              const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
+              if (result.data) {
+                setUserProfile(result.data);
+              }
+            }
+          }
+          
+          // Focus the game window
+          requestAnimationFrame(() => appBodyRef.current?.focus());
+        }
+      } else {
+        setTwitterUser(null);
+        setIsTwitterAuth(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Check for existing player profile on mount
   useEffect(() => {
     const loadStoredPlayer = async () => {
+      const isTwitterAuth = localStorage.getItem("is_twitter_auth") === "true";
+      
+      // If Twitter auth, wait for auth callback to handle
+      if (isTwitterAuth) {
+        // Check if we already have a session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const twitterHandle = session.user.user_metadata?.user_name;
+          if (twitterHandle) {
+            setTwitterUser(session.user);
+            setIsTwitterAuth(true);
+            setPlayerName(twitterHandle);
+            setShowOverlay(false);
+            
+            // Restore user data from database if available
+            const hasData = await restoreUserDataFromDB(twitterHandle);
+            if (hasData) {
+              const profile = getUserProfile(twitterHandle);
+              if (profile.hasProfile && profile.bestGameMode) {
+                const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
+                if (result.data) {
+                  setUserProfile(result.data);
+                }
+              }
+            }
+            return;
+          }
+        }
+      }
+      
       const storedName = getStoredPlayerName();
-      if (storedName) {
+      if (storedName && !isTwitterAuth) {
         setPlayerName(storedName);
         // Restore user data from database if available
         const hasData = await restoreUserDataFromDB(storedName);
@@ -740,7 +887,7 @@ export default function Home() {
           }
         }
         setShowOverlay(false);
-      } else {
+      } else if (!storedName) {
         setShowOverlay(true);
       }
     };
@@ -880,6 +1027,11 @@ export default function Home() {
     setPlayerName(finalName);
     setStoredPlayerName(finalName);
     
+    // Mark as NOT Twitter auth when using name
+    setIsTwitterAuth(false);
+    localStorage.setItem("is_twitter_auth", "false");
+    setTwitterUser(null);
+    
     // Check if user exists in database and restore their data
     const hasData = await restoreUserDataFromDB(finalName);
     
@@ -899,10 +1051,72 @@ export default function Home() {
     requestAnimationFrame(() => appBodyRef.current?.focus());
   };
 
-  const handleResetPlayer = () => {
+  // Handler for Twitter sign-in
+  const handleSignInWithTwitter = async () => {
+    try {
+      // First, check if user is already signed in
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const twitterHandle = session.user.user_metadata?.user_name;
+        if (twitterHandle) {
+          // User is already signed in with Twitter, use their handle immediately
+          setTwitterUser(session.user);
+          setIsTwitterAuth(true);
+          setPlayerName(twitterHandle);
+          setStoredPlayerName(twitterHandle);
+          localStorage.setItem("is_twitter_auth", "true");
+          
+          // Restore user data from database if available
+          const hasData = await restoreUserDataFromDB(twitterHandle);
+          if (hasData) {
+            const profile = getUserProfile(twitterHandle);
+            if (profile.hasProfile && profile.bestGameMode) {
+              const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
+              if (result.data) {
+                setUserProfile(result.data);
+              }
+            }
+          }
+          
+          // Close overlay and let them play
+          setShowOverlay(false);
+          requestAnimationFrame(() => appBodyRef.current?.focus());
+          return;
+        }
+      }
+      
+      // No existing session, start OAuth flow
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "twitter",
+        options: {
+          redirectTo: `${window.location.origin}${window.location.pathname}`,
+        },
+      });
+      
+      if (error) {
+        console.error("Sign in error:", error);
+        alert(`Sign in error: ${error.message}`);
+      }
+      // The redirect will happen automatically, and we'll handle it in the auth callback useEffect
+    } catch (err) {
+      console.error("Unexpected error during sign in:", err);
+      alert(`Unexpected error: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+  };
+
+  const handleResetPlayer = async () => {
     clearPlayerData(playerName);
+    
+    // Always sign out to end the session
+    await supabase.auth.signOut();
+    setTwitterUser(null);
+    setIsTwitterAuth(false);
+    localStorage.setItem("is_twitter_auth", "false");
+    
     setPlayerName("you");
     setUserProfile(null);
+    setAllUserScores([]);
     setShowUserMenu(false);
     setShowOverlay(true);
   };
@@ -920,7 +1134,7 @@ export default function Home() {
       
       {/* NEW: Render the overlay with AnimatePresence */}
       <AnimatePresence>
-        {showOverlay && <OnboardingOverlay onComplete={handleOnboardingComplete} />}
+        {showOverlay && <OnboardingOverlay onComplete={handleOnboardingComplete} onSignInWithTwitter={handleSignInWithTwitter} />}
       </AnimatePresence>
 
 
@@ -999,8 +1213,23 @@ export default function Home() {
                     <div className="p-4 space-y-3 font-mono">
                           {playerName && playerName !== "you" && (
                       <div className="border-b border-dark-dim/20 pb-3">
-                        <div className="text-sm text-dark-dim mb-1">name</div>
-                        <div className="text-lg font-bold text-dark-highlight">{playerName}</div>
+                        <div className="flex items-center gap-3">
+                          {isTwitterAuth && twitterUser?.user_metadata?.avatar_url ? (
+                            <img
+                              src={twitterUser.user_metadata.avatar_url}
+                              alt="Profile"
+                              className="w-10 h-10 rounded-full flex-shrink-0"
+                            />
+                          ) : (
+                            <div 
+                              className="w-10 h-10 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: "#39ff9c" }}
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-lg font-bold text-dark-highlight truncate">@{playerName}</div>
+                          </div>
+                        </div>
                       </div>
                           )}
                           {allUserScores.length > 0 ? (
@@ -1182,7 +1411,7 @@ export default function Home() {
                   />
                   {testStarted && (
                     <div className="absolute bottom-[-60px] left-0 text-sm text-dark-dim font-mono mt-4">
-                      Creating Sub-blocks in &lt;200ms on Etherlink.......
+                      Creating Sub-blocks in &lt;20ms on Etherlink.......
                     </div>
               )}
             </div>
@@ -1292,7 +1521,7 @@ export default function Home() {
               <div className="text-center mb-6">
                 {(() => {
                   const msPerLetter = parseFloat(results.msPerLetter) || 0;
-                  const isFasterThanSubblocks = msPerLetter < 200 && results.speedComparison === "Sub-blocks";
+                  const isFasterThanSubblocks = msPerLetter < 20 && results.speedComparison === "Sub-blocks";
                   
                   return (
                     <div className="flex items-start justify-center gap-8 flex-wrap">
@@ -1336,14 +1565,14 @@ export default function Home() {
                   { ms: 2000, position: 40 },     // Polygon
                   { ms: 1000, position: 60 },     // ETH L2s
                   { ms: 400, position: 80 },       // Solana
-                  { ms: 200, position: 100 },     // Sub-blocks
+                  { ms: 20, position: 100 },     // Sub-blocks
                 ];
                 
                 // Function to calculate position using logarithmic interpolation between thresholds
                 // This ensures the triangle position accurately reflects the user's actual time
                 const getPosition = (ms: number): number => {
                   // Clamp the value to the range
-                  const clampedMs = Math.max(200, Math.min(600000, ms));
+                  const clampedMs = Math.max(20, Math.min(600000, ms));
                   
                   // Find which two thresholds the value falls between
                   for (let i = 0; i < blockchainThresholds.length - 1; i++) {
@@ -1366,7 +1595,7 @@ export default function Home() {
                   }
                   
                   // Handle edge cases
-                  if (clampedMs <= 200) return 100; // Sub-blocks or faster
+                  if (clampedMs <= 20) return 100; // Sub-blocks or faster
                   if (clampedMs >= 600000) return 0; // Bitcoin or slower
                   
                   return 0;
@@ -1430,7 +1659,7 @@ export default function Home() {
                   { name: 'Polygon', ms: 2000, color: getBestContrastColor('matic', '#7B3FE4'), icon: 'matic', displayTime: null, gradientColor: '#6F41D8' }, // Polygon purple from logo
                   { name: 'ETH L2s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple
                   { name: 'Solana', ms: 400, color: getBestContrastColor('sol', '#DC1FFF'), icon: 'sol', displayTime: null, gradientColor: '#66F9A1' }, // Solana green from logo
-                  { name: 'Sub-blocks', ms: 200, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' }, // Etherlink logo
+                  { name: 'Sub-blocks', ms: 20, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' }, // Etherlink logo
                 ];
                 
                 // Equal spacing: 0%, 20%, 40%, 60%, 80%, 100%
@@ -1712,10 +1941,10 @@ export default function Home() {
 
                 <div className="mt-6 text-dark-main font-mono">
                   <p className="mt-2 text-dark-dim">
-                    Etherlink's new <span className="font-bold text-dark-main">sub-blocks</span> are so fast, they can lock in transactions in <span className="font-bold text-dark-main">&lt;=200 milliseconds</span>.
+                    Etherlink's new <span className="font-bold text-dark-main">sub-block latency</span> feature gives developers super-fast confirmation — around <span className="font-bold text-dark-main">10–20 milliseconds</span> — so they instantly know their transaction will make it into the next block.
                   </p>
                   <p className="mt-2 text-dark-dim">
-                    We built this game to help you feel that speed. The pacer blocks move at 200ms. Your goal is to beat it.
+                    We built this game to help you feel that speed. The pacer blocks move at 20ms. Your goal is to beat it.
                   </p>
             </div>
 
@@ -1739,11 +1968,12 @@ export default function Home() {
                       <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
           </div>
                     <div className="text-dark-dim">
-                      Your typing speed determines which blockchain you match. Can you beat <a href="https://etherlink.com" target="_blank" rel="noopener noreferrer" className="text-dark-highlight hover:underline">Etherlink</a> Sub-block's 200ms speed?
+                      Your typing speed determines which blockchain you match. Can you beat <a href="https://etherlink.com" target="_blank" rel="noopener noreferrer" className="text-dark-highlight hover:underline">Etherlink</a> Sub-block's 20ms speed?
       </div>
                   </div>
                   <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
-                    <li><span className="font-bold text-dark-main">Etherlink/Base/Unichain:</span> 150-200ms / letter (Lightning fast!)</li>
+                    <li><span className="font-bold text-dark-main">Etherlink:</span> &lt;=20ms / letter (Lightning fast!)</li>
+                    <li><span className="font-bold text-dark-main">Base/Unichain:</span> 200ms / letter (Super fast!)</li>
                     <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms / letter (Super fast!)</li>
                     <li><span className="font-bold text-dark-main">Other ETH Layer 2s:</span> 401-1000ms / letter (Fast!)</li>
                     <li><span className="font-bold text-dark-main">Polygon:</span> 1001-2000ms / letter (Quick!)</li>
