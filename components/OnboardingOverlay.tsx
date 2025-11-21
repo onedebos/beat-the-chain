@@ -201,7 +201,6 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                   <li><span className="font-bold text-dark-main">Base/Unichain:</span> 200ms / letter (Super fast!)</li>
                   <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms / letter (Super fast!)</li>
                   <li><span className="font-bold text-dark-main">ETH Layer2s:</span> 401-1000ms / letter (Fast!)</li>
-                  <li><span className="font-bold text-dark-main">Polygon:</span> 1001-2000ms / letter (Quick!)</li>
                   <li><span className="font-bold text-dark-main">Ethereum Mainnet:</span> 2001-12000ms / letter (Standard speed)</li>
                   <li><span className="font-bold text-dark-main">Bitcoin:</span> &gt; 12000ms / letter (Slow and steady)</li>
                 </ul>
