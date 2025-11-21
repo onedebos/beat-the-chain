@@ -284,6 +284,7 @@ export default function Home() {
   // Twitter auth state
   const [twitterUser, setTwitterUser] = useState<User | null>(null);
   const [isTwitterAuth, setIsTwitterAuth] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true); // Track if session is being restored
   const [hoveredMode, setHoveredMode] = useState<number | null>(null);
   const [animatedNumber, setAnimatedNumber] = useState<number | null>(null);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -416,9 +417,10 @@ export default function Home() {
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
     // "You were as fast as" is based purely on speed (msPerLetter) - not accuracy-adjusted
-    // Categories: Sub-blocks (20ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
+    // Categories: Super Conf. (20ms), Base (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
     let speedComparison = "Bitcoin";
-    if (msPerLetter <= 20) speedComparison = "Sub-blocks";
+    if (msPerLetter <= 20) speedComparison = "Super Conf.";
+    else if (msPerLetter <= 200) speedComparison = "Base";
     else if (msPerLetter <= 400) speedComparison = "Solana";
     else if (msPerLetter <= 1000) speedComparison = "ETH L2s";
     else if (msPerLetter <= 2000) speedComparison = "Polygon";
@@ -728,37 +730,33 @@ export default function Home() {
 
   // Check for Twitter auth session and OAuth callback
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      // Check for OAuth callback code in URL
+    const restoreSession = async () => {
+      setSessionLoading(true);
+      
+      // First, check for OAuth callback code in URL
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get("code");
       const error = urlParams.get("error");
 
       if (error) {
         console.error("OAuth error:", error);
-        // Clean up URL
         window.history.replaceState({}, "", window.location.pathname);
       } else if (code) {
-        // console.log("Exchanging code for session:", code);
+        // Handle OAuth callback
         const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        // console.log("Code exchange result:", { data, error: exchangeError });
         
         if (exchangeError) {
           console.error("Error exchanging code:", exchangeError);
         } else if (data?.user) {
-          // Get Twitter handle from metadata
           const twitterHandle = data.user.user_metadata?.user_name;
           if (twitterHandle) {
-            // Immediately close overlay first to prevent flickering
             setShowOverlay(false);
-            
             setTwitterUser(data.user);
             setIsTwitterAuth(true);
             setPlayerName(twitterHandle);
             setStoredPlayerName(twitterHandle);
             localStorage.setItem("is_twitter_auth", "true");
             
-            // Restore user data from database if available
             const hasData = await restoreUserDataFromDB(twitterHandle);
             if (hasData) {
               const profile = getUserProfile(twitterHandle);
@@ -770,51 +768,29 @@ export default function Home() {
               }
             }
             
-            // Focus the game window
             requestAnimationFrame(() => appBodyRef.current?.focus());
+            setSessionLoading(false);
+            window.history.replaceState({}, "", window.location.pathname);
+            return;
           }
         }
-        
-        // Clean up URL
         window.history.replaceState({}, "", window.location.pathname);
       }
-    };
 
-    handleAuthCallback();
-
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
+      // Check for existing Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      const isTwitterAuthStored = localStorage.getItem("is_twitter_auth") === "true";
+      
+      if (session?.user && isTwitterAuthStored) {
+        // Restore Twitter session
         const twitterHandle = session.user.user_metadata?.user_name;
         if (twitterHandle) {
-          setTwitterUser(session.user);
-          setIsTwitterAuth(true);
-          const storedIsTwitter = localStorage.getItem("is_twitter_auth") === "true";
-          if (storedIsTwitter) {
-            setPlayerName(twitterHandle);
-            setStoredPlayerName(twitterHandle);
-          }
-        }
-      }
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const twitterHandle = session.user.user_metadata?.user_name;
-        if (twitterHandle) {
-          // Immediately close overlay if it's open during auth state change
-          setShowOverlay(false);
-          
           setTwitterUser(session.user);
           setIsTwitterAuth(true);
           setPlayerName(twitterHandle);
           setStoredPlayerName(twitterHandle);
-          localStorage.setItem("is_twitter_auth", "true");
+          setShowOverlay(false);
           
-          // Restore user data from database if available
           const hasData = await restoreUserDataFromDB(twitterHandle);
           if (hasData) {
             const profile = getUserProfile(twitterHandle);
@@ -826,73 +802,99 @@ export default function Home() {
             }
           }
           
-          // Focus the game window
+          setSessionLoading(false);
+          return;
+        }
+      } else if (!session?.user && isTwitterAuthStored) {
+        // Session expired or invalid, clear Twitter auth
+        localStorage.setItem("is_twitter_auth", "false");
+        setIsTwitterAuth(false);
+        setTwitterUser(null);
+      }
+
+      // Check for name-based user (non-Twitter)
+      if (!isTwitterAuthStored) {
+        const storedName = getStoredPlayerName();
+        if (storedName && storedName !== "you") {
+          setPlayerName(storedName);
+          setIsTwitterAuth(false);
+          setTwitterUser(null);
+          
+          const hasData = await restoreUserDataFromDB(storedName);
+          if (hasData) {
+            const profile = getUserProfile(storedName);
+            if (profile.hasProfile && profile.bestGameMode) {
+              const result = await getUserBestScore(storedName, profile.bestGameMode);
+              if (result.data) {
+                setUserProfile(result.data);
+              }
+            }
+          }
+          setShowOverlay(false);
+        }
+      }
+
+      setSessionLoading(false);
+    };
+
+    restoreSession();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const twitterHandle = session.user.user_metadata?.user_name;
+        if (twitterHandle) {
+          setShowOverlay(false);
+          setTwitterUser(session.user);
+          setIsTwitterAuth(true);
+          setPlayerName(twitterHandle);
+          setStoredPlayerName(twitterHandle);
+          localStorage.setItem("is_twitter_auth", "true");
+          
+          const hasData = await restoreUserDataFromDB(twitterHandle);
+          if (hasData) {
+            const profile = getUserProfile(twitterHandle);
+            if (profile.hasProfile && profile.bestGameMode) {
+              const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
+              if (result.data) {
+                setUserProfile(result.data);
+              }
+            }
+          }
+          
           requestAnimationFrame(() => appBodyRef.current?.focus());
         }
       } else {
-        setTwitterUser(null);
-        setIsTwitterAuth(false);
+        // Session ended
+        const isTwitterAuthStored = localStorage.getItem("is_twitter_auth") === "true";
+        if (isTwitterAuthStored) {
+          // User was signed in with Twitter but session expired
+          setTwitterUser(null);
+          setIsTwitterAuth(false);
+          localStorage.setItem("is_twitter_auth", "false");
+          // Don't reset playerName here - let user decide what to do
+        }
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // Check for existing player profile on mount
+  // This useEffect is now handled in the session restoration above
+  // Keeping this for overlay initialization only
   useEffect(() => {
-    const loadStoredPlayer = async () => {
+    // Only show overlay if no session is being restored and no stored name
+    if (!sessionLoading) {
+      const storedName = getStoredPlayerName();
       const isTwitterAuth = localStorage.getItem("is_twitter_auth") === "true";
       
-      // If Twitter auth, wait for auth callback to handle
-      if (isTwitterAuth) {
-        // Check if we already have a session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const twitterHandle = session.user.user_metadata?.user_name;
-          if (twitterHandle) {
-            setTwitterUser(session.user);
-            setIsTwitterAuth(true);
-            setPlayerName(twitterHandle);
-            setShowOverlay(false);
-            
-            // Restore user data from database if available
-            const hasData = await restoreUserDataFromDB(twitterHandle);
-            if (hasData) {
-              const profile = getUserProfile(twitterHandle);
-              if (profile.hasProfile && profile.bestGameMode) {
-                const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
-                if (result.data) {
-                  setUserProfile(result.data);
-                }
-              }
-            }
-            return;
-          }
-        }
-      }
-      
-      const storedName = getStoredPlayerName();
-      if (storedName && !isTwitterAuth) {
-        setPlayerName(storedName);
-        // Restore user data from database if available
-        const hasData = await restoreUserDataFromDB(storedName);
-        if (hasData) {
-          // If data was restored, fetch and set the user profile for display
-          const profile = getUserProfile(storedName);
-          if (profile.hasProfile && profile.bestGameMode) {
-            const result = await getUserBestScore(storedName, profile.bestGameMode);
-            if (result.data) {
-              setUserProfile(result.data);
-            }
-          }
-        }
-        setShowOverlay(false);
-      } else if (!storedName) {
+      if (!storedName && !isTwitterAuth && playerName === "you") {
         setShowOverlay(true);
       }
-    };
-    loadStoredPlayer();
-  }, []);
+    }
+  }, [sessionLoading, playerName]);
 
   const handleRestart = useCallback(() => {
     initGame();
@@ -1411,7 +1413,7 @@ export default function Home() {
                   />
                   {testStarted && (
                     <div className="absolute bottom-[-60px] left-0 text-sm text-dark-dim font-mono mt-4">
-                      Creating Sub-blocks in &lt;20ms on Etherlink.......
+                      Creating Super Confirmations in &lt;20ms on Etherlink.......
                     </div>
               )}
             </div>
@@ -1521,7 +1523,7 @@ export default function Home() {
               <div className="text-center mb-6">
                 {(() => {
                   const msPerLetter = parseFloat(results.msPerLetter) || 0;
-                  const isFasterThanSubblocks = msPerLetter < 20 && results.speedComparison === "Sub-blocks";
+                  const isFasterThanSubblocks = msPerLetter < 20 && results.speedComparison === "Super Conf.";
                   
                   return (
                     <div className="flex items-start justify-center gap-8 flex-wrap">
@@ -1561,11 +1563,12 @@ export default function Home() {
                 // Define the blockchain thresholds and their positions
                 const blockchainThresholds = [
                   { ms: 600000, position: 0 },   // Bitcoin
-                  { ms: 12000, position: 20 },    // Ethereum Mainnet
-                  { ms: 2000, position: 40 },     // Polygon
-                  { ms: 1000, position: 60 },     // ETH L2s
-                  { ms: 400, position: 80 },       // Solana
-                  { ms: 20, position: 100 },     // Sub-blocks
+                  { ms: 12000, position: 16.67 },    // Ethereum Mainnet
+                  { ms: 2000, position: 33.33 },     // Polygon
+                  { ms: 1000, position: 50 },     // ETH L2s
+                  { ms: 400, position: 66.67 },       // Solana
+                  { ms: 200, position: 83.33 },     // Base
+                  { ms: 20, position: 100 },     // Super Confirmations
                 ];
                 
                 // Function to calculate position using logarithmic interpolation between thresholds
@@ -1595,7 +1598,7 @@ export default function Home() {
                   }
                   
                   // Handle edge cases
-                  if (clampedMs <= 20) return 100; // Sub-blocks or faster
+                  if (clampedMs <= 20) return 100; // Super Confirmations or faster
                   if (clampedMs >= 600000) return 0; // Bitcoin or slower
                   
                   return 0;
@@ -1638,6 +1641,7 @@ export default function Home() {
                   'eth': ['#627EEA', '#FFFFFF'], // Ethereum: purple bg, white symbol
                   'matic': ['#6F41D8', '#FFFFFF'], // Polygon: purple bg, white symbol
                   'sol': ['#66F9A1', '#FFFFFF'], // Solana: green bg, white symbol
+                  'base': ['#0052FF', '#FFFFFF'], // Base: blue bg, white symbol
                   'xtz': ['#A6E000', '#FFFFFF'], // Tezos: lime green bg, white symbol
                 };
 
@@ -1651,7 +1655,7 @@ export default function Home() {
                 };
 
                 // Define blockchain positions with equal spacing
-                // Bitcoin at beginning (left), Sub-blocks at end (right)
+                // Bitcoin at beginning (left), Super Confirmations at end (right)
                 // Extract colors from logo icons (background colors from SVGs)
                 const chains = [
                   { name: 'Bitcoin', ms: 600000, color: getBestContrastColor('btc', '#ff8c00'), icon: 'btc', displayTime: '10mins', gradientColor: '#F7931A' }, // Bitcoin orange from logo
@@ -1659,10 +1663,11 @@ export default function Home() {
                   { name: 'Polygon', ms: 2000, color: getBestContrastColor('matic', '#7B3FE4'), icon: 'matic', displayTime: null, gradientColor: '#6F41D8' }, // Polygon purple from logo
                   { name: 'ETH L2s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' }, // Ethereum purple
                   { name: 'Solana', ms: 400, color: getBestContrastColor('sol', '#DC1FFF'), icon: 'sol', displayTime: null, gradientColor: '#66F9A1' }, // Solana green from logo
-                  { name: 'Sub-blocks', ms: 20, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' }, // Etherlink logo
+                  { name: 'Base', ms: 200, color: getBestContrastColor('base', '#0052FF'), icon: 'base', displayTime: null, gradientColor: '#0052FF' }, // Base blue from logo
+                  { name: 'Super Conf.', ms: 20, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' }, // Etherlink logo
                 ];
                 
-                // Equal spacing: 0%, 20%, 40%, 60%, 80%, 100%
+                // Equal spacing: 0%, 16.67%, 33.33%, 50%, 66.67%, 83.33%, 100% (7 chains)
                 const blockchainPositions = chains.map((chain, index) => ({
                   ...chain,
                   position: (index / (chains.length - 1)) * 100
@@ -1670,9 +1675,9 @@ export default function Home() {
                 
                 // Calculate chart start and end positions based on label positions
                 // Chart should start from Bitcoin icon (left edge of first label)
-                // and end at the right edge of Sub-blocks text (last label)
+                // and end at the right edge of Super Confirmations text (last label)
                 const chartStartOffset = 2.5; // Offset to align with Bitcoin icon
-                const chartEndOffset = 5; // Offset to extend past Sub-blocks text
+                const chartEndOffset = 5; // Offset to extend past Super Confirmations text
                 const chartWidth = 100 - chartStartOffset - chartEndOffset;
                 
                 // Build smooth gradient from chain icon colors
@@ -1783,37 +1788,72 @@ export default function Home() {
                                 minWidth: '100px',
                               }}
                             >
-                              <div className="flex items-center gap-1">
-                                {/* Icons - Using cryptocurrency-icons */}
-                                {blockchain.icon && (
-                                  <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                                    <img 
-                                      src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
-                                      alt={blockchain.name}
-                                      className="w-5 h-5"
-                                    />
-              </div>
-                                )}
-                                
-                                {/* Text Content */}
-                                <div className="flex flex-col">
-                                  {/* Name */}
-                                  <div 
-                                    className="text-xs font-mono font-bold leading-tight"
-                                    style={{ color: blockchain.color }}
-                                  >
-                                    {blockchain.name}
-                                  </div>
-                                  
-                                  {/* Block Time */}
-                                  <div 
-                                    className="text-[10px] font-mono leading-tight"
-                                    style={{ color: blockchain.color }}
-                                  >
-                                    {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
+                              {blockchain.name === 'Super Conf.' ? (
+                                // Special layout for Super Conf. - icon inline with text, time below
+                                <div className="flex items-center gap-1">
+                                  {/* Text Content */}
+                                  <div className="flex flex-col">
+                                    {/* Name with icon inline beside the S */}
+                                    <div className="flex items-center gap-1">
+                                      {blockchain.icon && (
+                                        <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                          <img 
+                                            src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
+                                            alt={blockchain.name}
+                                            className="w-5 h-5"
+                                          />
+                                        </div>
+                                      )}
+                                      <div 
+                                        className="text-xs font-mono font-bold leading-tight whitespace-nowrap"
+                                        style={{ color: blockchain.color }}
+                                      >
+                                        {blockchain.name}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Block Time - aligned same as other chains */}
+                                    <div 
+                                      className="text-[10px] font-mono leading-tight"
+                                      style={{ color: blockchain.color }}
+                                    >
+                                      20ms
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  {/* Icons - Using cryptocurrency-icons */}
+                                  {blockchain.icon && (
+                                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                      <img 
+                                        src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
+                                        alt={blockchain.name}
+                                        className="w-5 h-5"
+                                      />
+                                    </div>
+                                  )}
+                                  
+                                  {/* Text Content */}
+                                  <div className="flex flex-col">
+                                    {/* Name */}
+                                    <div 
+                                      className="text-xs font-mono font-bold leading-tight"
+                                      style={{ color: blockchain.color }}
+                                    >
+                                      {blockchain.name}
+                                    </div>
+                                    
+                                    {/* Block Time */}
+                                    <div 
+                                      className="text-[10px] font-mono leading-tight"
+                                      style={{ color: blockchain.color }}
+                                    >
+                                      {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
