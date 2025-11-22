@@ -28,13 +28,34 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Create a separate anonymous client for public read queries
 // This ensures queries work the same way regardless of authentication state
+// We explicitly sign out to ensure no auth tokens are sent
 export const supabaseAnonymous = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: false, // Don't persist sessions for this client
     autoRefreshToken: false,
     detectSessionInUrl: false,
+    storage: typeof window !== 'undefined' ? {
+      getItem: () => null, // Always return null - no stored session
+      setItem: () => {}, // Ignore session storage
+      removeItem: () => {}, // Ignore removal
+    } : undefined,
   },
 });
+
+// Explicitly ensure anonymous client has no session
+if (typeof window !== 'undefined') {
+  // Remove any potential session on initialization
+  supabaseAnonymous.auth.getSession().then(({ data: { session } }) => {
+    if (session) {
+      console.log("⚠️ Anonymous client had a session, clearing it...");
+      supabaseAnonymous.auth.signOut({ scope: 'local' }).catch(() => {
+        // Ignore errors - we just want to ensure no session
+      });
+    }
+  }).catch(() => {
+    // Ignore errors during initialization check
+  });
+}
 
 // Server-side client (uses service role key for writes)
 // This should only be used in API routes or server components

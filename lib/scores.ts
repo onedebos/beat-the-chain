@@ -160,22 +160,49 @@ export async function getLeaderboard(
     
     const queryStartTime = Date.now();
     
+    console.log("Checking anonymous Supabase client...");
+    console.log("Anonymous client exists:", !!supabaseAnonymous);
+    console.log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
+    
     // Direct query - same as name-based users use (no session check needed)
     console.log("Making Supabase query to game_results table...");
     console.log("Query params: game_mode =", gameMode);
-    console.log("Query promise created, awaiting response...");
     
     let data: any = null;
     let error: any = null;
     
     try {
       // Use anonymous client for public reads - ensures same behavior for all users
-      const result = await supabaseAnonymous
+      console.log("Creating query promise with anonymous client...");
+      const queryPromise = supabaseAnonymous
         .from("game_results")
         .select("*")
         .eq("game_mode", gameMode)
         .limit(10000);
       
+      console.log("Query promise created, adding timeout wrapper...");
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
+        setTimeout(() => {
+          console.error(`⚠️ Database query timed out after 10 seconds`);
+          resolve({ data: null, error: new Error("Database query timeout") });
+        }, 10000);
+      });
+      
+      console.log("Race between query and timeout starting...");
+      const queryResult = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if ('data' in queryResult && queryResult.data === null && queryResult.error) {
+        // Timeout occurred
+        const queryEndTime = Date.now();
+        console.error(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
+        console.log("==========================");
+        return { data: null, error: queryResult.error.message };
+      }
+      
+      // Query completed (either success or error from Supabase)
+      const result = queryResult as { data: any; error: any };
       data = result.data;
       error = result.error;
       const queryEndTime = Date.now();
@@ -188,7 +215,10 @@ export async function getLeaderboard(
       console.error("Query exception:", queryErr);
       console.error("Error type:", typeof queryErr);
       console.error("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
-      throw queryErr;
+      return {
+        data: null,
+        error: queryErr instanceof Error ? queryErr.message : "Unknown error",
+      };
     }
     
     if (error) {
@@ -295,16 +325,20 @@ export async function getUserBestScore(
     const queryStartTime = Date.now();
     
     // Direct query - same as name-based users use (no session check needed)
+    console.log("Checking anonymous Supabase client...");
+    console.log("Anonymous client exists:", !!supabaseAnonymous);
+    console.log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
+    
     console.log("Making Supabase query to game_results table...");
     console.log("Query params: player_name =", playerName, "game_mode =", gameMode);
-    console.log("Query promise created, awaiting response...");
     
     let data: any = null;
     let error: any = null;
     
     try {
       // Use anonymous client for public reads - ensures same behavior for all users
-      const result = await supabaseAnonymous
+      console.log("Creating query promise with anonymous client...");
+      const queryPromise = supabaseAnonymous
         .from("game_results")
         .select("*")
         .eq("player_name", playerName)
@@ -313,6 +347,29 @@ export async function getUserBestScore(
         .limit(1)
         .single();
       
+      console.log("Query promise created, adding timeout wrapper...");
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
+        setTimeout(() => {
+          console.error(`⚠️ Database query timed out after 10 seconds`);
+          resolve({ data: null, error: new Error("Database query timeout") });
+        }, 10000);
+      });
+      
+      console.log("Race between query and timeout starting...");
+      const queryResult = await Promise.race([queryPromise, timeoutPromise]);
+      
+      if ('data' in queryResult && queryResult.data === null && queryResult.error) {
+        // Timeout occurred
+        const queryEndTime = Date.now();
+        console.error(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
+        console.log("==========================");
+        return { data: null, error: queryResult.error.message };
+      }
+      
+      // Query completed (either success or error from Supabase)
+      const result = queryResult as { data: any; error: any };
       data = result.data;
       error = result.error;
       const queryEndTime = Date.now();
@@ -325,7 +382,10 @@ export async function getUserBestScore(
       console.error("Query exception:", queryErr);
       console.error("Error type:", typeof queryErr);
       console.error("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
-      throw queryErr;
+      return {
+        data: null,
+        error: queryErr instanceof Error ? queryErr.message : "Unknown error",
+      };
     }
     
     if (error) {
