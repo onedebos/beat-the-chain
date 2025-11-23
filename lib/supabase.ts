@@ -26,36 +26,37 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Create a separate anonymous client for public read queries
-// This ensures queries work the same way regardless of authentication state
-// We explicitly sign out to ensure no auth tokens are sent
-export const supabaseAnonymous = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false, // Don't persist sessions for this client
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    storage: typeof window !== 'undefined' ? {
-      getItem: () => null, // Always return null - no stored session
-      setItem: () => {}, // Ignore session storage
-      removeItem: () => {}, // Ignore removal
-    } : undefined,
-  },
-});
+// Create anonymous client lazily to avoid blocking module initialization
+// This prevents the main supabase client's auth initialization from delaying queries
+let _supabaseAnonymous: ReturnType<typeof createClient> | null = null;
 
-// Explicitly ensure anonymous client has no session
-if (typeof window !== 'undefined') {
-  // Remove any potential session on initialization
-  supabaseAnonymous.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-      console.log("⚠️ Anonymous client had a session, clearing it...");
-      supabaseAnonymous.auth.signOut({ scope: 'local' }).catch(() => {
-        // Ignore errors - we just want to ensure no session
-      });
-    }
-  }).catch(() => {
-    // Ignore errors during initialization check
-  });
+function createAnonymousClient() {
+  if (!_supabaseAnonymous) {
+    _supabaseAnonymous = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false, // Don't persist sessions for this client
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storage: typeof window !== 'undefined' ? {
+          getItem: () => null, // Always return null - no stored session
+          setItem: () => {}, // Ignore session storage
+          removeItem: () => {}, // Ignore removal
+        } : undefined,
+      },
+    });
+  }
+  return _supabaseAnonymous;
 }
+
+// Export as lazy getter - created only when first accessed
+export const supabaseAnonymous = new Proxy({} as any, {
+  get(_target, prop) {
+    const client = createAnonymousClient();
+    const value = (client as any)[prop];
+    // If it's a method, bind it to the client
+    return typeof value === 'function' ? value.bind(client) : value;
+  }
+});
 
 // Server-side client (uses service role key for writes)
 // This should only be used in API routes or server components

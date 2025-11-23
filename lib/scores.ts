@@ -1,19 +1,33 @@
 import { supabase, supabaseAnonymous } from "./supabase";
 import type { GameResult, LeaderboardEntry } from "./types";
 
-// Debug helper to check Supabase client
+// Helper to check if running on localhost (for conditional logging)
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// Wrapper functions for logging (only log on localhost)
+const log = (...args: any[]) => {
+  if (isLocalhost) console.log(...args);
+};
+
+const logError = (...args: any[]) => {
+  if (isLocalhost) console.error(...args);
+};
+
+// Debug helper to check Supabase client (only logs on localhost)
 function checkSupabaseClient() {
-  console.log("=== SUPABASE CLIENT CHECK ===");
-  console.log("Client exists:", !!supabase);
-  console.log("Client URL:", (supabase as any)?._url || "unknown");
-  console.log("Client key present:", !!((supabase as any)?._key || "unknown"));
+  if (!isLocalhost) return;
+  log("=== SUPABASE CLIENT CHECK ===");
+  log("Client exists:", !!supabase);
+  log("Client URL:", (supabase as any)?._url || "unknown");
+  log("Client key present:", !!((supabase as any)?._key || "unknown"));
   
   // Check if environment variables are available
   if (typeof window !== "undefined") {
-    console.log("NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "Present" : "Missing");
-    console.log("NEXT_PUBLIC_SUPABASE_ANON_KEY:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Present" : "Missing");
+    log("NEXT_PUBLIC_SUPABASE_URL:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "Present" : "Missing");
+    log("NEXT_PUBLIC_SUPABASE_ANON_KEY:", process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Present" : "Missing");
   }
-  console.log("===========================");
+  log("===========================");
 }
 
 /**
@@ -123,7 +137,7 @@ export async function saveGameResult(result: GameResult): Promise<{ success: boo
       id: apiResult.id,
     };
   } catch (err) {
-    console.error("Unexpected error saving game result:", err);
+    logError("Unexpected error saving game result:", err);
     return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
 }
@@ -148,57 +162,57 @@ export async function getLeaderboard(
   limit: number = 10
 ): Promise<{ data: LeaderboardEntry[] | null; error?: string }> {
   try {
-    console.log("=== getLeaderboard DEBUG ===");
-    console.log("Fetching leaderboard for gameMode:", gameMode, "limit:", limit);
+    log("=== getLeaderboard DEBUG ===");
+    log("Fetching leaderboard for gameMode:", gameMode, "limit:", limit);
     
     // Check Supabase client
     checkSupabaseClient();
     
     // Note: Leaderboard queries are public reads and don't require authentication
     // Same logic works for name-based and Twitter auth users
-    console.log("Starting database query (public read, no auth required)...");
+    log("Starting database query (public read, no auth required)...");
     
     const queryStartTime = Date.now();
     
-    console.log("Checking anonymous Supabase client...");
-    console.log("Anonymous client exists:", !!supabaseAnonymous);
-    console.log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
+    log("Checking anonymous Supabase client...");
+    log("Anonymous client exists:", !!supabaseAnonymous);
+    log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
     
     // Direct query - same as name-based users use (no session check needed)
-    console.log("Making Supabase query to game_results table...");
-    console.log("Query params: game_mode =", gameMode);
+    log("Making Supabase query to game_results table...");
+    log("Query params: game_mode =", gameMode);
     
     let data: any = null;
     let error: any = null;
     
     try {
       // Use anonymous client for public reads - ensures same behavior for all users
-      console.log("Creating query promise with anonymous client...");
+      log("Creating query promise with anonymous client...");
       const queryPromise = supabaseAnonymous
         .from("game_results")
         .select("*")
         .eq("game_mode", gameMode)
         .limit(10000);
       
-      console.log("Query promise created, adding timeout wrapper...");
+      log("Query promise created, adding timeout wrapper...");
       
       // Add timeout to prevent hanging (15 seconds to account for slower connections)
       const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
         setTimeout(() => {
-          console.error(`⚠️ Database query timed out after 15 seconds`);
-          console.error(`Query was for gameMode: ${gameMode}`);
+          logError(`⚠️ Database query timed out after 15 seconds`);
+          logError(`Query was for gameMode: ${gameMode}`);
           resolve({ data: null, error: new Error("Database query timeout") });
         }, 15000);
       });
       
-      console.log("Race between query and timeout starting...");
+      log("Race between query and timeout starting...");
       const queryResult = await Promise.race([queryPromise, timeoutPromise]);
       
       if ('data' in queryResult && queryResult.data === null && queryResult.error) {
         // Timeout occurred
         const queryEndTime = Date.now();
-        console.error(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
-        console.log("==========================");
+        logError(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
+        log("==========================");
         return { data: null, error: queryResult.error.message };
       }
       
@@ -207,15 +221,15 @@ export async function getLeaderboard(
       data = result.data;
       error = result.error;
       const queryEndTime = Date.now();
-      console.log(`✅ Database query completed in ${queryEndTime - queryStartTime}ms`);
-      console.log("Query result - data count:", data?.length || 0);
-      console.log("Query result - error:", error);
+      log(`✅ Database query completed in ${queryEndTime - queryStartTime}ms`);
+      log("Query result - data count:", data?.length || 0);
+      log("Query result - error:", error);
     } catch (queryErr) {
       const queryEndTime = Date.now();
-      console.error(`❌ Database query failed after ${queryEndTime - queryStartTime}ms`);
-      console.error("Query exception:", queryErr);
-      console.error("Error type:", typeof queryErr);
-      console.error("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
+      logError(`❌ Database query failed after ${queryEndTime - queryStartTime}ms`);
+      logError("Query exception:", queryErr);
+      logError("Error type:", typeof queryErr);
+      logError("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
       return {
         data: null,
         error: queryErr instanceof Error ? queryErr.message : "Unknown error",
@@ -223,15 +237,15 @@ export async function getLeaderboard(
     }
     
     if (error) {
-      console.error("Error fetching leaderboard:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
-      console.log("==========================");
+      logError("Error fetching leaderboard:", error);
+      logError("Error details:", JSON.stringify(error, null, 2));
+      log("==========================");
       return { data: null, error: error.message };
     }
 
     if (!data || data.length === 0) {
-      console.log("No leaderboard data found");
-      console.log("==========================");
+      log("No leaderboard data found");
+      log("==========================");
       return { data: [] };
     }
 
@@ -258,12 +272,12 @@ export async function getLeaderboard(
     // Return top entries (remove the weightedScore property before returning)
     const topEntries = entriesWithWeightedScore.slice(0, limit).map(({ weightedScore, ...entry }: LeaderboardEntry & { weightedScore: number }) => entry);
 
-    console.log(`Returning ${topEntries.length} top entries`);
-    console.log("==========================");
+    log(`Returning ${topEntries.length} top entries`);
+    log("==========================");
     return { data: topEntries as LeaderboardEntry[] };
   } catch (err) {
-    console.error("Unexpected error fetching leaderboard:", err);
-    console.error("Error stack:", err instanceof Error ? err.stack : "No stack");
+    logError("Unexpected error fetching leaderboard:", err);
+    logError("Error stack:", err instanceof Error ? err.stack : "No stack");
     return {
       data: null,
       error: err instanceof Error ? err.message : "Unknown error",
@@ -313,32 +327,34 @@ export async function getUserBestScore(
   gameMode: number
 ): Promise<{ data: LeaderboardEntry | null; error?: string }> {
   try {
-    console.log("=== getUserBestScore DEBUG ===");
-    console.log("Querying for playerName:", playerName, "gameMode:", gameMode);
+    log("=== getUserBestScore DEBUG ===");
+    log("Querying for playerName:", playerName, "gameMode:", gameMode);
     
     // Check Supabase client
     checkSupabaseClient();
     
     // Note: User score queries are public reads and don't require authentication
     // Same logic works for name-based and Twitter auth users
-    console.log("Starting database query (public read, no auth required)...");
+    log("Starting database query (public read, no auth required)...");
     
     const queryStartTime = Date.now();
     
     // Direct query - same as name-based users use (no session check needed)
-    console.log("Checking anonymous Supabase client...");
-    console.log("Anonymous client exists:", !!supabaseAnonymous);
-    console.log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
+    log("Checking anonymous Supabase client...");
+    log("Anonymous client exists:", !!supabaseAnonymous);
+    log("Anonymous client URL:", (supabaseAnonymous as any)?._url || "unknown");
     
-    console.log("Making Supabase query to game_results table...");
-    console.log("Query params: player_name =", playerName, "game_mode =", gameMode);
+    log("Making Supabase query to game_results table...");
+    log("Query params: player_name =", playerName, "game_mode =", gameMode);
     
     let data: any = null;
     let error: any = null;
     
     try {
       // Use anonymous client for public reads - ensures same behavior for all users
-      console.log("Creating query promise with anonymous client...");
+      log("Creating query promise with anonymous client...");
+      log("Anonymous client check - about to access supabaseAnonymous.from()");
+      const clientAccessStart = Date.now();
       const queryPromise = supabaseAnonymous
         .from("game_results")
         .select("*")
@@ -347,27 +363,29 @@ export async function getUserBestScore(
         .order("score", { ascending: false })
         .limit(1)
         .single();
+      const clientAccessEnd = Date.now();
+      log(`Anonymous client accessed in ${clientAccessEnd - clientAccessStart}ms`);
       
-      console.log("Query promise created, adding timeout wrapper...");
+      log("Query promise created, adding timeout wrapper...");
       
       // Add timeout to prevent hanging (15 seconds to account for slower connections)
       const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) => {
         setTimeout(() => {
-          console.error(`⚠️ Database query timed out after 15 seconds`);
-          console.error(`Query was for playerName: ${playerName}, gameMode: ${gameMode}`);
+          logError(`⚠️ Database query timed out after 15 seconds`);
+          logError(`Query was for playerName: ${playerName}, gameMode: ${gameMode}`);
           resolve({ data: null, error: new Error("Database query timeout") });
         }, 15000);
       });
       
-      console.log("Race between query and timeout starting...");
+      log("Race between query and timeout starting...");
       const queryResult = await Promise.race([queryPromise, timeoutPromise]);
       
       if ('data' in queryResult && queryResult.data === null && queryResult.error) {
         // Timeout occurred
         const queryEndTime = Date.now();
-        console.error(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
-        console.error(`Failed query: playerName: ${playerName}, gameMode: ${gameMode}`);
-        console.log("==========================");
+        logError(`❌ Database query timed out after ${queryEndTime - queryStartTime}ms`);
+        logError(`Failed query: playerName: ${playerName}, gameMode: ${gameMode}`);
+        log("==========================");
         return { data: null, error: queryResult.error.message };
       }
       
@@ -376,15 +394,15 @@ export async function getUserBestScore(
       data = result.data;
       error = result.error;
       const queryEndTime = Date.now();
-      console.log(`✅ Database query completed in ${queryEndTime - queryStartTime}ms`);
-      console.log("Query result - data:", data);
-      console.log("Query result - error:", error);
+      log(`✅ Database query completed in ${queryEndTime - queryStartTime}ms`);
+      log("Query result - data:", data);
+      log("Query result - error:", error);
     } catch (queryErr) {
       const queryEndTime = Date.now();
-      console.error(`❌ Database query failed after ${queryEndTime - queryStartTime}ms`);
-      console.error("Query exception:", queryErr);
-      console.error("Error type:", typeof queryErr);
-      console.error("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
+      logError(`❌ Database query failed after ${queryEndTime - queryStartTime}ms`);
+      logError("Query exception:", queryErr);
+      logError("Error type:", typeof queryErr);
+      logError("Error details:", JSON.stringify(queryErr, Object.getOwnPropertyNames(queryErr), 2));
       return {
         data: null,
         error: queryErr instanceof Error ? queryErr.message : "Unknown error",
@@ -394,21 +412,21 @@ export async function getUserBestScore(
     if (error) {
       // If no record found, that's okay
       if (error.code === "PGRST116") {
-        console.log("No record found (PGRST116)");
-        console.log("==========================");
+        log("No record found (PGRST116)");
+        log("==========================");
         return { data: null };
       }
-      console.error("Error fetching user best score:", error);
-      console.log("==========================");
+      logError("Error fetching user best score:", error);
+      log("==========================");
       return { data: null, error: error.message };
     }
 
-    console.log("Successfully fetched user best score");
-    console.log("==========================");
+    log("Successfully fetched user best score");
+    log("==========================");
     return { data: data as LeaderboardEntry };
   } catch (err) {
-    console.error("Unexpected error fetching user best score:", err);
-    console.error("Error stack:", err instanceof Error ? err.stack : "No stack");
+    logError("Unexpected error fetching user best score:", err);
+    logError("Error stack:", err instanceof Error ? err.stack : "No stack");
     return {
       data: null,
       error: err instanceof Error ? err.message : "Unknown error",
@@ -423,10 +441,6 @@ export async function getAllUserScores(
   playerName: string
 ): Promise<{ data: LeaderboardEntry[]; error?: string }> {
   try {
-    console.log("=== getAllUserScores START ===");
-    console.log("Fetching scores for playerName:", playerName);
-    console.log("Note: Public read query by player_name (same for name-based and Twitter users)");
-    
     const gameModes = [15, 30, 60];
     const allScores: LeaderboardEntry[] = [];
 
@@ -434,32 +448,20 @@ export async function getAllUserScores(
     // Add error handling to prevent one failed query from blocking others
     for (const mode of gameModes) {
       try {
-        console.log(`Fetching scores for mode ${mode}...`);
         const result = await getUserBestScore(playerName, mode);
         if (result.data) {
-          console.log(`✅ Found score for mode ${mode}:`, result.data.score);
           allScores.push(result.data);
-        } else if (result.error) {
-          console.error(`❌ Error fetching mode ${mode}:`, result.error);
-          // Continue to next mode even if this one failed
-        } else {
-          console.log(`ℹ️ No score found for mode ${mode} (not an error)`);
         }
       } catch (err) {
-        console.error(`❌ Exception fetching mode ${mode}:`, err);
-        // Continue to next mode even if this one threw an exception
+        // Continue to next mode even if this one failed
       }
     }
 
     // Sort by game mode (15, 30, 60)
     allScores.sort((a, b) => a.game_mode - b.game_mode);
 
-    console.log(`Total scores found: ${allScores.length}`);
-    console.log("=== getAllUserScores END ===");
     return { data: allScores };
   } catch (err) {
-    console.error("Unexpected error fetching all user scores:", err);
-    console.error("Error stack:", err instanceof Error ? err.stack : "No stack");
     return {
       data: [],
       error: err instanceof Error ? err.message : "Unknown error",
@@ -574,8 +576,7 @@ export async function restoreUserDataFromDB(playerName: string): Promise<boolean
 
     return hasData;
   } catch (err) {
-    console.error("Error restoring user data from database:", err);
+    logError("Error restoring user data from database:", err);
     return false;
   }
 }
-

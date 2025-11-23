@@ -7,6 +7,19 @@ import { getLeaderboard } from "../../lib/scores";
 import type { LeaderboardEntry } from "../../lib/types";
 import Footer from "../../components/Footer";
 
+// Helper to check if running on localhost (for conditional logging)
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// Wrapper functions for logging (only log on localhost)
+const log = (...args: any[]) => {
+  if (isLocalhost) console.log(...args);
+};
+
+const logError = (...args: any[]) => {
+  if (isLocalhost) console.error(...args);
+};
+
 const GAME_MODES = [15, 30, 60] as const;
 type GameMode = typeof GAME_MODES[number];
 
@@ -39,27 +52,27 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      console.log("=== LEADERBOARD PAGE - FETCHING ===");
-      console.log("gameMode:", gameMode);
+      log("=== LEADERBOARD PAGE - FETCHING ===");
+      log("gameMode:", gameMode);
       setLoading(true);
       setError(null);
       // Fetch a large number of entries for pagination (500 should be enough)
       const { data, error: fetchError } = await getLeaderboard(gameMode, 500);
-      console.log("Leaderboard fetch result - data length:", data?.length || 0);
-      console.log("Leaderboard fetch result - error:", fetchError);
+      log("Leaderboard fetch result - data length:", data?.length || 0);
+      log("Leaderboard fetch result - error:", fetchError);
       
       if (fetchError) {
-        console.error("Error fetching leaderboard:", fetchError);
+        logError("Error fetching leaderboard:", fetchError);
         setError(fetchError);
         setLeaders([]);
       } else {
-        console.log("Setting leaders data:", data?.length || 0, "entries");
+        log("Setting leaders data:", data?.length || 0, "entries");
         setLeaders(data || []);
       }
       setLoading(false);
       // Reset to page 1 when game mode changes
       setCurrentPage(1);
-      console.log("=== LEADERBOARD PAGE - DONE ===");
+      log("=== LEADERBOARD PAGE - DONE ===");
     };
 
     fetchLeaderboard();

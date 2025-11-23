@@ -15,6 +15,23 @@ import Footer from "../components/Footer";
 import { supabase } from "../lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
+// Helper to check if running on localhost (for conditional logging)
+const isLocalhost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+// Wrapper functions for logging (only log on localhost)
+const log = (...args: any[]) => {
+  if (isLocalhost) console.log(...args);
+};
+
+const logError = (...args: any[]) => {
+  if (isLocalhost) console.error(...args);
+};
+
+const logWarn = (...args: any[]) => {
+  if (isLocalhost) console.warn(...args);
+};
+
 
 
 // --- GAME CONSTANTS ---
@@ -596,47 +613,47 @@ export default function Home() {
       game_mode: gameMode,
     }).then((result) => {
       if (result.isNewBest) {
-        console.log("New personal best saved!");
+        log("New personal best saved!");
       } else {
-        console.log("Score not saved - not a new best");
+        log("Score not saved - not a new best");
       }
       // Fetch updated rankings after saving
       fetchRankings();
     }).catch((error) => {
-      console.error("Failed to save game result:", error);
+      logError("Failed to save game result:", error);
       // Silently fail - don't interrupt user experience
     });
   }, [playerName, gameMode]);
 
   // Fetch rankings for the current game mode
   const fetchRankings = useCallback(async () => {
-    console.log("=== HOME PAGE - FETCHING RANKINGS ===");
-    console.log("gameMode:", gameMode);
-    console.log("playerName:", playerName);
+    log("=== HOME PAGE - FETCHING RANKINGS ===");
+    log("gameMode:", gameMode);
+    log("playerName:", playerName);
     setRankingsLoading(true);
     try {
-      // Fetch more entries to find current user's position
-      const { data, error } = await getLeaderboard(gameMode, 100); // Get top 100 to find user position
-      console.log("Rankings fetch result - data length:", data?.length || 0);
-      console.log("Rankings fetch result - error:", error);
+    // Fetch more entries to find current user's position
+    const { data, error } = await getLeaderboard(gameMode, 100); // Get top 100 to find user position
+      log("Rankings fetch result - data length:", data?.length || 0);
+      log("Rankings fetch result - error:", error);
       
       if (error) {
-        console.error("Error fetching leaderboard:", error);
+        logError("Error fetching leaderboard:", error);
         setRankings([]);
       } else if (data) {
-        console.log("Setting rankings data:", data.length, "entries");
-        setRankings(data);
+        log("Setting rankings data:", data.length, "entries");
+      setRankings(data);
       } else {
-        console.log("No rankings data returned");
+        log("No rankings data returned");
         setRankings([]);
       }
-      console.log("=== HOME PAGE - RANKINGS DONE ===");
+      log("=== HOME PAGE - RANKINGS DONE ===");
     } catch (err) {
-      console.error("Unexpected error fetching leaderboard:", err);
-      console.error("Error stack:", err instanceof Error ? err.stack : "No stack");
+      logError("Unexpected error fetching leaderboard:", err);
+      logError("Error stack:", err instanceof Error ? err.stack : "No stack");
       setRankings([]);
     } finally {
-      setRankingsLoading(false);
+    setRankingsLoading(false);
     }
   }, [gameMode, playerName]);
 
@@ -891,10 +908,10 @@ export default function Home() {
   // Check for existing session on mount and restore state
   useEffect(() => {
     const checkSession = async () => {
-      console.log("=== SESSION CHECK STARTING ===");
-      console.log("Setting sessionLoading to: true");
+      log("=== SESSION CHECK STARTING ===");
+      log("Setting sessionLoading to: true");
       setSessionLoading(true);
-      console.log("sessionLoading should now be: true");
+      log("sessionLoading should now be: true");
       
       try {
         // Check for OAuth errors in URL
@@ -904,7 +921,7 @@ export default function Home() {
         const errorDescription = urlParams.get("error_description") || hashParams.get("error_description");
 
         if (error) {
-          console.error("OAuth error:", error, errorDescription);
+          logError("OAuth error:", error, errorDescription);
           window.history.replaceState({}, "", window.location.pathname);
         }
 
@@ -914,14 +931,14 @@ export default function Home() {
           window.history.replaceState({}, "", window.location.pathname);
         }
 
-        // Check for existing session - wait for it to be fully ready
-        // Add timeout to prevent hanging - session check should not block score queries
+        // Check for existing session - add timeout to prevent hanging
+        // Don't let session check block queries - they work independently
         const sessionCheckPromise = supabase.auth.getSession();
         const sessionTimeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
           setTimeout(() => {
-            console.warn("⚠️ Session check timed out after 5 seconds - continuing without session");
+            logWarn("⚠️ Session check timed out after 3 seconds - continuing without session");
             resolve({ data: { session: null }, error: null });
-          }, 5000); // 5 second timeout for session check
+          }, 3000); // Short timeout - queries don't need session
         });
         
         const {
@@ -930,18 +947,18 @@ export default function Home() {
         } = await Promise.race([sessionCheckPromise, sessionTimeoutPromise]);
 
         // Log session data and errors for debugging
-        console.log("=== SESSION CHECK ON PAGE LOAD ===");
-        console.log("Session data:", session);
-        console.log("Session user:", session?.user);
-        console.log("Session access_token:", session?.access_token ? "Present" : "Missing");
-        console.log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
-        console.log("Session expires_at (timestamp):", session?.expires_at);
-        console.log("Session expires_at (ISO):", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
-        console.log("SessionError:", sessionError);
+        log("=== SESSION CHECK ON PAGE LOAD ===");
+        log("Session data:", session);
+        log("Session user:", session?.user);
+        log("Session access_token:", session?.access_token ? "Present" : "Missing");
+        log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
+        log("Session expires_at (timestamp):", session?.expires_at);
+        log("Session expires_at (ISO):", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
+        log("SessionError:", sessionError);
         if (sessionError) {
-          console.error("Error getting session:", sessionError);
+          logError("Error getting session:", sessionError);
         }
-        console.log("====================================");
+        log("====================================");
 
         if (session?.user) {
           const twitterHandle = session.user.user_metadata?.user_name;
@@ -965,51 +982,51 @@ export default function Home() {
                 }
               }
             } catch (error) {
-              console.error("Error restoring user data:", error);
+              logError("Error restoring user data:", error);
             }
             
-            console.log("Twitter user found - setting sessionChecked and sessionLoading to false");
+            log("Twitter user found - setting sessionChecked and sessionLoading to false");
             setSessionChecked(true);
             setSessionLoading(false);
-            console.log("sessionLoading should now be: false");
+            log("sessionLoading should now be: false");
             return;
           }
         }
 
         // Restore name-based user state (if not Twitter auth)
-        const storedName = getStoredPlayerName();
+      const storedName = getStoredPlayerName();
         if (storedName && storedName !== "you") {
-          setPlayerName(storedName);
+        setPlayerName(storedName);
           setShowOverlay(false);
           
           try {
-            const hasData = await restoreUserDataFromDB(storedName);
-            if (hasData) {
-              const profile = getUserProfile(storedName);
-              if (profile.hasProfile && profile.bestGameMode) {
-                const result = await getUserBestScore(storedName, profile.bestGameMode);
-                if (result.data) {
-                  setUserProfile(result.data);
-                }
-              }
+        const hasData = await restoreUserDataFromDB(storedName);
+        if (hasData) {
+          const profile = getUserProfile(storedName);
+          if (profile.hasProfile && profile.bestGameMode) {
+            const result = await getUserBestScore(storedName, profile.bestGameMode);
+            if (result.data) {
+              setUserProfile(result.data);
             }
+          }
+        }
           } catch (error) {
-            console.error("Error restoring user data:", error);
+            logError("Error restoring user data:", error);
           }
         } else if (!session?.user) {
           // No session and no stored name - show overlay
-          setShowOverlay(true);
+        setShowOverlay(true);
         }
         
         setSessionChecked(true);
       } catch (error) {
-        console.error("Error in checkSession:", error);
+        logError("Error in checkSession:", error);
         setSessionChecked(true);
       } finally {
-        console.log("=== SESSION CHECK COMPLETE ===");
-        console.log("Setting sessionLoading to: false");
+        log("=== SESSION CHECK COMPLETE ===");
+        log("Setting sessionLoading to: false");
         setSessionLoading(false);
-        console.log("sessionLoading should now be: false");
+        log("sessionLoading should now be: false");
       }
     };
 
@@ -1019,14 +1036,14 @@ export default function Home() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("=== AUTH STATE CHANGE ===");
-      console.log("Event:", event);
-      console.log("Session:", session);
-      console.log("Session user:", session?.user);
-      console.log("Session access_token:", session?.access_token ? "Present" : "Missing");
-      console.log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
-      console.log("Session expires_at:", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
-      console.log("=========================");
+      log("=== AUTH STATE CHANGE ===");
+      log("Event:", event);
+      log("Session:", session);
+      log("Session user:", session?.user);
+      log("Session access_token:", session?.access_token ? "Present" : "Missing");
+      log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
+      log("Session expires_at:", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
+      log("=========================");
       
       if (session?.user) {
         const twitterHandle = session.user.user_metadata?.user_name;
@@ -1037,11 +1054,11 @@ export default function Home() {
           setIsTwitterAuth(true);
           setPlayerName(twitterHandle);
           setStoredPlayerName(twitterHandle);
-          console.log("=== AUTH STATE CHANGE - Twitter user signed in ===");
-          console.log("Setting sessionLoading to: false");
+          log("=== AUTH STATE CHANGE - Twitter user signed in ===");
+          log("Setting sessionLoading to: false");
           setSessionLoading(false);
           setSessionChecked(true);
-          console.log("sessionLoading should now be: false");
+          log("sessionLoading should now be: false");
           
           try {
             const hasData = await restoreUserDataFromDB(twitterHandle);
@@ -1055,7 +1072,7 @@ export default function Home() {
               }
             }
           } catch (error) {
-            console.error("Error restoring user data in auth state change:", error);
+            logError("Error restoring user data in auth state change:", error);
           }
           
           // Clean up URL hash if present (implicit flow tokens)
@@ -1069,11 +1086,11 @@ export default function Home() {
         // Session ended
         setTwitterUser(null);
         setIsTwitterAuth(false);
-        console.log("=== AUTH STATE CHANGE - Session ended ===");
-        console.log("Setting sessionLoading to: false");
+        log("=== AUTH STATE CHANGE - Session ended ===");
+        log("Setting sessionLoading to: false");
         setSessionLoading(false);
         setSessionChecked(true);
-        console.log("sessionLoading should now be: false");
+        log("sessionLoading should now be: false");
       }
     });
 
@@ -1082,12 +1099,12 @@ export default function Home() {
 
   // Log sessionLoading and scoresLoading whenever they change
   useEffect(() => {
-    console.log("=== STATE UPDATE: sessionLoading / scoresLoading ===");
-    console.log("sessionLoading:", sessionLoading);
-    console.log("scoresLoading:", scoresLoading);
-    console.log("isTwitterAuth:", isTwitterAuth);
-    console.log("playerName:", playerName);
-    console.log("showUserMenu:", showUserMenu);
+    log("=== STATE UPDATE: sessionLoading / scoresLoading ===");
+    log("sessionLoading:", sessionLoading);
+    log("scoresLoading:", scoresLoading);
+    log("isTwitterAuth:", isTwitterAuth);
+    log("playerName:", playerName);
+    log("showUserMenu:", showUserMenu);
   }, [sessionLoading, scoresLoading, isTwitterAuth, playerName, showUserMenu]);
 
   // Overlay is already set synchronously in useState initializer above
@@ -1125,7 +1142,7 @@ export default function Home() {
           screenshotFile = new File([blob], "beat-the-chain-results.png", { type: "image/png" });
         }
       } catch (err) {
-        console.log("Failed to capture screenshot:", err);
+        log("Failed to capture screenshot:", err);
       }
     }
     
@@ -1191,10 +1208,10 @@ export default function Home() {
                 url: shareUrl,
               });
             } catch (err2) {
-              console.log("Share cancelled or failed:", err2);
+              log("Share cancelled or failed:", err2);
             }
           } else {
-            console.log("Share cancelled");
+            log("Share cancelled");
           }
         }
       } else if (navigator.share) {
@@ -1206,7 +1223,7 @@ export default function Home() {
             url: shareUrl,
           });
         } catch (err) {
-          console.log("Share cancelled or failed:", err);
+          log("Share cancelled or failed:", err);
         }
       } else {
         // Fallback: copy to clipboard
@@ -1214,7 +1231,7 @@ export default function Home() {
           await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
           alert("Results copied to clipboard!");
         } catch (err) {
-          console.log("Failed to copy to clipboard:", err);
+          log("Failed to copy to clipboard:", err);
         }
       }
     }
@@ -1293,12 +1310,12 @@ export default function Home() {
       });
       
       if (error) {
-        console.error("Sign in error:", error);
+        logError("Sign in error:", error);
         alert(`Sign in error: ${error.message}`);
       }
       // The redirect will happen automatically, and we'll handle it in the auth callback useEffect
     } catch (err) {
-      console.error("Unexpected error during sign in:", err);
+      logError("Unexpected error during sign in:", err);
       alert(`Unexpected error: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
@@ -1370,69 +1387,74 @@ export default function Home() {
                         
                         // Only fetch scores if we're opening the menu
                         if (newMenuState) {
-                          console.log("=== SETTINGS DROPDOWN - OPENING ===");
-                          console.log("sessionLoading:", sessionLoading);
-                          console.log("scoresLoading:", scoresLoading);
-                          console.log("playerName:", playerName);
-                          console.log("isTwitterAuth:", isTwitterAuth);
+                          log("=== SETTINGS DROPDOWN - OPENING ===");
+                          log("sessionLoading:", sessionLoading);
+                          log("scoresLoading:", scoresLoading);
+                          log("playerName:", playerName);
+                          log("isTwitterAuth:", isTwitterAuth);
                           setScoresLoading(true);
-                          console.log("After setScoresLoading(true) - scoresLoading should be: true");
+                          log("After setScoresLoading(true) - scoresLoading should be: true");
                           
                           // Don't wait for session check - queries are public reads and work immediately
                           // Same logic for name-based and Twitter users
                           
                           try {
-                            console.log("=== SETTINGS DROPDOWN - FETCHING SCORES ===");
-                            console.log("playerName:", playerName);
-                            console.log("isTwitterAuth:", isTwitterAuth);
-                            console.log("sessionLoading at fetch start:", sessionLoading);
-                            console.log("scoresLoading at fetch start:", true);
-                            console.log("Note: Queries work the same for name-based and Twitter users (public reads by player_name)");
+                            log("=== SETTINGS DROPDOWN - FETCHING SCORES ===");
+                            log("playerName:", playerName);
+                            log("isTwitterAuth:", isTwitterAuth);
+                            log("sessionLoading at fetch start:", sessionLoading);
+                            log("scoresLoading at fetch start:", true);
+                            log("Note: Queries work the same for name-based and Twitter users (public reads by player_name)");
                             
                             // No session check needed - queries are public reads by player_name
                             // Works the same way for both name-based and Twitter auth users
                             
-                            // Fetch all scores for all game modes
-                            console.log("Calling getAllUserScores...");
+                        // Fetch all scores for all game modes
+                            log("Calling getAllUserScores...");
+                            log("Time before getAllUserScores:", new Date().toISOString());
                             const queryStartTime = Date.now();
+                            
+                            // IMPORTANT: Don't await anything before this - queries should start immediately
                             const result = await getAllUserScores(playerName);
+                            
                             const queryEndTime = Date.now();
-                            console.log(`getAllUserScores completed in ${queryEndTime - queryStartTime}ms`);
-                            console.log("getAllUserScores result:", result);
-                            console.log("Result data length:", result.data?.length || 0);
-                            console.log("Result error:", result.error);
+                            log(`getAllUserScores completed in ${queryEndTime - queryStartTime}ms`);
+                            log("Time after getAllUserScores:", new Date().toISOString());
+                            log("getAllUserScores result:", result);
+                            log("Result data length:", result.data?.length || 0);
+                            log("Result error:", result.error);
                             
                             // Log full error details if present
                             if (result.error) {
-                              console.error("Error details:", JSON.stringify(result.error, null, 2));
+                              logError("Error details:", JSON.stringify(result.error, null, 2));
                             }
                             
-                            if (result.data && result.data.length > 0) {
-                              console.log("Setting scores in state:", result.data);
-                              setAllUserScores(result.data);
-                              // Set the best score as the primary profile (for backward compatibility)
-                              const bestScore = result.data.reduce((best, current) => 
-                                current.score > best.score ? current : best
-                              );
-                              setUserProfile(bestScore);
-                            } else {
-                              console.log("No scores found for player:", playerName);
+                          if (result.data && result.data.length > 0) {
+                              log("Setting scores in state:", result.data);
+                            setAllUserScores(result.data);
+                            // Set the best score as the primary profile (for backward compatibility)
+                            const bestScore = result.data.reduce((best, current) => 
+                              current.score > best.score ? current : best
+                            );
+                            setUserProfile(bestScore);
+                        } else {
+                              log("No scores found for player:", playerName);
                               if (result.error) {
-                                console.error("Error from getAllUserScores:", result.error);
+                                logError("Error from getAllUserScores:", result.error);
                               }
-                              setAllUserScores([]);
-                              setUserProfile(null);
-                            }
-                            console.log("=== SETTINGS DROPDOWN - DONE ===");
+                            setAllUserScores([]);
+                          setUserProfile(null);
+                        }
+                            log("=== SETTINGS DROPDOWN - DONE ===");
                           } catch (error) {
-                            console.error("Error fetching user scores:", error);
-                            console.error("Error stack:", error instanceof Error ? error.stack : "No stack");
+                            logError("Error fetching user scores:", error);
+                            logError("Error stack:", error instanceof Error ? error.stack : "No stack");
                             setAllUserScores([]);
                             setUserProfile(null);
                           } finally {
-                            console.log("Setting scoresLoading to false");
+                            log("Setting scoresLoading to false");
                             setScoresLoading(false);
-                            console.log("After setScoresLoading(false) - scoresLoading should be: false");
+                            log("After setScoresLoading(false) - scoresLoading should be: false");
                           }
                         } else {
                           // Closing menu, reset loading state
@@ -1441,8 +1463,8 @@ export default function Home() {
                     } else {
                         // Still toggle the dropdown even if no player name
                         setAllUserScores([]);
-                        setUserProfile(null);
-                        setShowUserMenu(!showUserMenu);
+                      setUserProfile(null);
+                      setShowUserMenu(!showUserMenu);
                   }
                 }}
                     className="text-dark-dim hover:text-dark-highlight transition-colors cursor-pointer text-left"
@@ -2011,37 +2033,37 @@ export default function Home() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1">
-                                  {/* Icons - Using cryptocurrency-icons */}
-                                  {blockchain.icon && (
-                                    <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                                      <img 
-                                        src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
-                                        alt={blockchain.name}
-                                        className="w-5 h-5"
-                                      />
-                                    </div>
-                                  )}
+                              <div className="flex items-center gap-1">
+                                {/* Icons - Using cryptocurrency-icons */}
+                                {blockchain.icon && (
+                                  <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
+                                    <img 
+                                      src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
+                                      alt={blockchain.name}
+                                      className="w-5 h-5"
+                                    />
+              </div>
+                                )}
+                                
+                                {/* Text Content */}
+                                <div className="flex flex-col">
+                                  {/* Name */}
+                                  <div 
+                                    className="text-xs font-mono font-bold leading-tight"
+                                    style={{ color: blockchain.color }}
+                                  >
+                                    {blockchain.name}
+                                  </div>
                                   
-                                  {/* Text Content */}
-                                  <div className="flex flex-col">
-                                    {/* Name */}
-                                    <div 
-                                      className="text-xs font-mono font-bold leading-tight"
-                                      style={{ color: blockchain.color }}
-                                    >
-                                      {blockchain.name}
-                                    </div>
-                                    
-                                    {/* Block Time */}
-                                    <div 
-                                      className="text-[10px] font-mono leading-tight"
-                                      style={{ color: blockchain.color }}
-                                    >
-                                      {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
-                                    </div>
+                                  {/* Block Time */}
+                                  <div 
+                                    className="text-[10px] font-mono leading-tight"
+                                    style={{ color: blockchain.color }}
+                                  >
+                                    {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
                                   </div>
                                 </div>
+                              </div>
                               )}
                             </div>
                           </div>
