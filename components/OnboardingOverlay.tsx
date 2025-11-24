@@ -170,7 +170,7 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
             <ResizableContent value="1">
               <div className="pb-5">
               <h1 className="text-4xl font-bold text-dark-highlight font-nfs text-center">
-                WELCOME TO PROOF OF SPEED
+                WELCOME TO PROOF OF SPEED 🤯
               </h1>
 
               <div className="mt-6 text-dark-main font-mono">
