@@ -26,14 +26,14 @@ export default function Footer() {
           <div className="flex flex-wrap gap-x-4 gap-y-2">
             <button
               onClick={() => setShowHowToPlay(true)}
-              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
+              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono"
             >
               <i className="fa-solid fa-circle-question h-4 w-4" />
               <span>how to play</span>
             </button>
             <Link
               href="/leaderboard"
-              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
+              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono"
             >
               <i className="fa-solid fa-star h-4 w-4" />
               <span>leaderboard</span>
@@ -42,7 +42,7 @@ export default function Footer() {
               href="https://discord.gg/etherlink"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
+              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono"
             >
               <i className="fa-brands fa-discord h-4 w-4" />
               <span>discord</span>
@@ -51,21 +51,21 @@ export default function Footer() {
               href="https://twitter.com/etherlink"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors"
+              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono"
             >
               <i className="fa-brands fa-twitter h-4 w-4" />
               <span>twitter</span>
             </a>
-            <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors">
+            <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono">
               <i className="fa-solid fa-circle-info h-4 w-4" />
               <span>terms</span>
             </a>
-            <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors">
+            <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono">
               <i className="fa-solid fa-lock h-4 w-4" />
               <span>privacy</span>
             </a>
           </div>
-          <div className="flex space-x-2 text-dark-dim">
+          <div className="flex space-x-2 text-dark-dim font-mono">
             <span>etherlink</span>
             <a href="https://medium.com/@etherlink/announcing-ebisu-a-5th-upgrade-proposal-for-etherlink-mainnet-4dfdd1c8819e" target="_blank" rel="noopener noreferrer" className="hover:text-dark-highlight transition-colors">
               <span>v:5.0.0 ebisu</span>

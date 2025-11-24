@@ -6,31 +6,13 @@ import Link from "next/link";
 import html2canvas from "html2canvas";
 import dictionary from "../lib/dictionary";
 import shuffle from "../lib/shuffle";
-import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB, getAllUserScores } from "../lib/scores";
+import { saveGameResult, getLeaderboard, getUserBestScore, getUserProfile, clearPlayerData, getStoredPlayerName, setStoredPlayerName, restoreUserDataFromDB, getAllUserScores, getStoredTwitterAvatar, setStoredTwitterAvatar, clearStoredTwitterAvatar } from "../lib/scores";
 import type { LeaderboardEntry } from "../lib/types";
 import OnboardingOverlay from "../components/OnboardingOverlay";
 import CountUp from "../components/CountUp";
 import { Confetti, type ConfettiRef } from "../components/Confetti";
 import Footer from "../components/Footer";
 import { supabase } from "../lib/supabase";
-import type { User } from "@supabase/supabase-js";
-
-// Helper to check if running on localhost (for conditional logging)
-const isLocalhost = typeof window !== 'undefined' && 
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-// Wrapper functions for logging (only log on localhost)
-const log = (...args: any[]) => {
-  if (isLocalhost) console.log(...args);
-};
-
-const logError = (...args: any[]) => {
-  if (isLocalhost) console.error(...args);
-};
-
-const logWarn = (...args: any[]) => {
-  if (isLocalhost) console.warn(...args);
-};
 
 
 
@@ -419,7 +401,20 @@ export default function Home() {
   // Initialize to safe defaults to avoid hydration mismatches
   // Will be updated in useEffect after client-side hydration
   const [playerName, setPlayerName] = useState("you");
-  const [showOverlay, setShowOverlay] = useState(true); // Default to showing overlay, will be updated after check
+  
+  // Initialize showOverlay based on OAuth callback detection and localStorage
+  const getInitialShowOverlay = () => {
+    if (typeof window === "undefined") return true; // SSR default
+    // If OAuth callback detected, hide overlay immediately to prevent flash
+    const hasOAuthCallback = window.location.hash.includes("access_token") || 
+                             window.location.hash.includes("refresh_token");
+    if (hasOAuthCallback) return false;
+    // Otherwise check localStorage for existing player name
+    const storedName = localStorage.getItem("player_name");
+    return !(storedName && storedName !== "you");
+  };
+  
+  const [showOverlay, setShowOverlay] = useState(getInitialShowOverlay());
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -428,11 +423,8 @@ export default function Home() {
   const [allUserScores, setAllUserScores] = useState<LeaderboardEntry[]>([]);
   const [scoresLoading, setScoresLoading] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  // Twitter auth state
+  // Twitter auth state - just track if user has Twitter avatar (derived from localStorage)
   const [isTwitterAuth, setIsTwitterAuth] = useState(false);
-  const [twitterUser, setTwitterUser] = useState<User | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(true); // Start as true to wait for session check
-  const [sessionChecked, setSessionChecked] = useState(false); // Track if session check is complete
   const [hoveredMode, setHoveredMode] = useState<number | null>(null);
   const [animatedNumber, setAnimatedNumber] = useState<number | null>(null);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -466,12 +458,16 @@ export default function Home() {
     const letters = stateRef.current.letterElements;
     if (!cursor || !container || letters.length === 0) return;
 
-    const target = index < letters.length ? letters[index] : letters[letters.length - 1];
+    const target =
+      index < letters.length ? letters[index] : letters[letters.length - 1];
     if (!target) return;
 
     const rect = target.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    const left = index < letters.length ? rect.left - containerRect.left : rect.right - containerRect.left;
+    const left =
+      index < letters.length
+        ? rect.left - containerRect.left
+        : rect.right - containerRect.left;
 
     cursor.style.left = `${left}px`;
     cursor.style.top = `${rect.top - containerRect.top}px`;
@@ -531,7 +527,7 @@ export default function Home() {
     setTestStarted(false);
     setTestFinished(false);
     setTextFocused(false);
-    setPacerResetKey(prev => prev + 1); // Force pacer squares to reset
+    setPacerResetKey((prev) => prev + 1); // Force pacer squares to reset
     populateWords();
 
     requestAnimationFrame(() => moveCursor(0));
@@ -556,7 +552,8 @@ export default function Home() {
     const durationMs = endTime - stateRef.current.startTime;
     const durationSec = Math.max(durationMs / 1000, 0.001);
     const lettersPerSecond = lettersCount / durationSec;
-    const accuracy = ((lettersCount - stateRef.current.errorCount) / lettersCount) * 100;
+    const accuracy =
+      ((lettersCount - stateRef.current.errorCount) / lettersCount) * 100;
     // Score factors in accuracy more heavily by squaring the accuracy percentage
     // This ensures accuracy is weighted more than just a simple multiplication
     const accuracyDecimal = accuracy / 100;
@@ -611,46 +608,32 @@ export default function Home() {
       time: parseFloat(durationSec.toFixed(2)),
       ms_per_letter: parseFloat(msPerLetter.toFixed(0)),
       game_mode: gameMode,
-    }).then((result) => {
-      if (result.isNewBest) {
-        log("New personal best saved!");
-      } else {
-        log("Score not saved - not a new best");
-      }
+    })
+      .then((result) => {
+      // Score saved (or not if not a new best)
       // Fetch updated rankings after saving
       fetchRankings();
-    }).catch((error) => {
-      logError("Failed to save game result:", error);
+      })
+      .catch((error) => {
       // Silently fail - don't interrupt user experience
     });
   }, [playerName, gameMode]);
 
   // Fetch rankings for the current game mode
   const fetchRankings = useCallback(async () => {
-    log("=== HOME PAGE - FETCHING RANKINGS ===");
-    log("gameMode:", gameMode);
-    log("playerName:", playerName);
     setRankingsLoading(true);
     try {
     // Fetch more entries to find current user's position
     const { data, error } = await getLeaderboard(gameMode, 100); // Get top 100 to find user position
-      log("Rankings fetch result - data length:", data?.length || 0);
-      log("Rankings fetch result - error:", error);
-      
+
       if (error) {
-        logError("Error fetching leaderboard:", error);
         setRankings([]);
       } else if (data) {
-        log("Setting rankings data:", data.length, "entries");
       setRankings(data);
       } else {
-        log("No rankings data returned");
         setRankings([]);
-      }
-      log("=== HOME PAGE - RANKINGS DONE ===");
+    }
     } catch (err) {
-      logError("Unexpected error fetching leaderboard:", err);
-      logError("Error stack:", err instanceof Error ? err.stack : "No stack");
       setRankings([]);
     } finally {
     setRankingsLoading(false);
@@ -682,7 +665,12 @@ export default function Home() {
     if (testFinished && confettiRef.current) {
       const rankName = getRankName(results.rank);
       // Trigger for Speed Operator, Chain Slayer, Turbo Typelord, or Grandmaster of Speed
-      if (rankName === "Speed Operator 🥇" || rankName === "Chain Slayer ⚔️" || rankName === "Turbo Typelord 💎" || rankName === "Grandmaster of Speed 👑") {
+      if (
+        rankName === "Speed Operator 🥇" ||
+        rankName === "Chain Slayer ⚔️" ||
+        rankName === "Turbo Typelord 💎" ||
+        rankName === "Grandmaster of Speed 👑"
+      ) {
         setTimeout(() => {
           confettiRef.current?.fire();
         }, 500);
@@ -730,7 +718,9 @@ export default function Home() {
           
           // Get the button element (settings button) - it's the sibling before the dropdown
           const parent = dropdown.parentElement;
-          const settingsButton = parent?.querySelector('button[title="Settings"]') as HTMLElement;
+          const settingsButton = parent?.querySelector(
+            'button[title="Settings"]'
+          ) as HTMLElement;
           
           if (settingsButton && parent) {
             const buttonRect = settingsButton.getBoundingClientRect();
@@ -751,7 +741,8 @@ export default function Home() {
             // Check for overflow and adjust
             if (dropdownRightAbsolute > viewportWidth - padding) {
               // Overflow on right - shift left
-              const overflow = dropdownRightAbsolute - (viewportWidth - padding);
+              const overflow =
+                dropdownRightAbsolute - (viewportWidth - padding);
               dropdown.style.right = `${offset + overflow}px`;
             } else if (dropdownLeftAbsolute < padding) {
               // Overflow on left - shift right
@@ -768,7 +759,7 @@ export default function Home() {
               const overflow = rect.right - (viewportWidth - padding);
               dropdown.style.right = `${overflow}px`;
             } else {
-              dropdown.style.right = '0px';
+              dropdown.style.right = "0px";
             }
           }
         });
@@ -785,7 +776,9 @@ export default function Home() {
         event.preventDefault();
         tabPressedRef.current = true;
         if (tabTimeoutRef.current) clearTimeout(tabTimeoutRef.current);
-        tabTimeoutRef.current = setTimeout(() => { tabPressedRef.current = false; }, 1000);
+        tabTimeoutRef.current = setTimeout(() => {
+          tabPressedRef.current = false;
+        }, 1000);
         return;
       }
       
@@ -797,7 +790,7 @@ export default function Home() {
         return;
       }
       
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         event.preventDefault();
         initGame();
         return;
@@ -808,11 +801,18 @@ export default function Home() {
         return;
       }
 
-      if (stateRef.current.testActive && ["Shift", "Control", "Alt", "Meta"].includes(event.key)) {
+      if (
+        stateRef.current.testActive &&
+        ["Shift", "Control", "Alt", "Meta"].includes(event.key)
+      ) {
         return;
       }
 
-      if (!stateRef.current.testActive && !event.metaKey && event.key.length === 1) {
+      if (
+        !stateRef.current.testActive &&
+        !event.metaKey &&
+        event.key.length === 1
+      ) {
         startTest();
       }
 
@@ -822,9 +822,14 @@ export default function Home() {
         event.preventDefault();
         if (stateRef.current.currentIndex > 0) {
           stateRef.current.currentIndex -= 1;
-          const letter = stateRef.current.letterElements[stateRef.current.currentIndex];
+          const letter =
+            stateRef.current.letterElements[stateRef.current.currentIndex];
           if (letter) {
-            letter.classList.remove("text-dark-main", "text-dark-error", "underline");
+            letter.classList.remove(
+              "text-dark-main",
+              "text-dark-error",
+              "underline"
+            );
             // Remove inline color to allow parent color to show
             letter.style.color = "";
           }
@@ -833,8 +838,12 @@ export default function Home() {
         return;
       }
 
-      if (event.key.length === 1 && stateRef.current.currentIndex < stateRef.current.letterElements.length) {
-        const currentLetter = stateRef.current.letterElements[stateRef.current.currentIndex];
+      if (
+        event.key.length === 1 &&
+        stateRef.current.currentIndex < stateRef.current.letterElements.length
+      ) {
+        const currentLetter =
+          stateRef.current.letterElements[stateRef.current.currentIndex];
         if (!currentLetter) return;
 
         // Remove inline color so Tailwind classes can work
@@ -851,7 +860,10 @@ export default function Home() {
 
         stateRef.current.currentIndex += 1;
 
-        if (stateRef.current.currentIndex === stateRef.current.letterElements.length) {
+        if (
+          stateRef.current.currentIndex ===
+          stateRef.current.letterElements.length
+        ) {
           endGame();
         } else {
           moveCursor(stateRef.current.currentIndex);
@@ -868,12 +880,15 @@ export default function Home() {
     // NEW: Only focus the game if the overlay is not visible
     let focusFrame: number | undefined;
     if (!showOverlay) {
-      focusFrame = window.requestAnimationFrame(() => appBodyRef.current?.focus());
+      focusFrame = window.requestAnimationFrame(() =>
+        appBodyRef.current?.focus()
+      );
     }
 
     return () => {
       window.removeEventListener("keydown", keyListener);
-      if (focusFrame) { // <-- check if focusFrame was set
+      if (focusFrame) {
+        // <-- check if focusFrame was set
         window.cancelAnimationFrame(focusFrame);
       }
       if (tabTimeoutRef.current) {
@@ -905,207 +920,180 @@ export default function Home() {
     }
   }, [bannerVisible]);
 
-  // Check for existing session on mount and restore state
+  // Check for OAuth callback and restore state from localStorage
+  // Check for OAuth callback and restore state from localStorage
   useEffect(() => {
-    const checkSession = async () => {
-      log("=== SESSION CHECK STARTING ===");
-      log("Setting sessionLoading to: true");
-      setSessionLoading(true);
-      log("sessionLoading should now be: true");
-      
+    const initializeApp = async () => {
       try {
-        // Check for OAuth errors in URL
+        // Check for OAuth callback - Supabase uses implicit flow (tokens in hash)
+        // Check for OAuth errors first
         const urlParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.substring(1));
         const error = urlParams.get("error") || hashParams.get("error");
-        const errorDescription = urlParams.get("error_description") || hashParams.get("error_description");
-
-        if (error) {
-          logError("OAuth error:", error, errorDescription);
-          window.history.replaceState({}, "", window.location.pathname);
-        }
-
-        // Clean up URL hash if present (Supabase handles token extraction automatically)
-        if (window.location.hash.includes("access_token") || window.location.hash.includes("refresh_token")) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          window.history.replaceState({}, "", window.location.pathname);
-        }
-
-        // Check for existing session - add timeout to prevent hanging
-        // Don't let session check block queries - they work independently
-        const sessionCheckPromise = supabase.auth.getSession();
-        const sessionTimeoutPromise = new Promise<{ data: { session: null }, error: null }>((resolve) => {
-          setTimeout(() => {
-            logWarn("⚠️ Session check timed out after 3 seconds - continuing without session");
-            resolve({ data: { session: null }, error: null });
-          }, 3000); // Short timeout - queries don't need session
-        });
         
-        const {
-          data: { session },
-          error: sessionError,
-        } = await Promise.race([sessionCheckPromise, sessionTimeoutPromise]);
-
-        // Log session data and errors for debugging
-        log("=== SESSION CHECK ON PAGE LOAD ===");
-        log("Session data:", session);
-        log("Session user:", session?.user);
-        log("Session access_token:", session?.access_token ? "Present" : "Missing");
-        log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
-        log("Session expires_at (timestamp):", session?.expires_at);
-        log("Session expires_at (ISO):", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
-        log("SessionError:", sessionError);
-        if (sessionError) {
-          logError("Error getting session:", sessionError);
+        if (error) {
+          window.history.replaceState({}, "", window.location.pathname);
+          // Continue to restore from localStorage
         }
-        log("====================================");
-
-        if (session?.user) {
-          const twitterHandle = session.user.user_metadata?.user_name;
-          if (twitterHandle) {
-            setTwitterUser(session.user);
-            setIsTwitterAuth(true);
-            setPlayerName(twitterHandle);
-            setStoredPlayerName(twitterHandle);
-            setShowOverlay(false);
-
-            // Restore user data from database
+        
+        // Check if there's an OAuth callback (tokens in hash or code in URL)
+        const hasOAuthCallback = window.location.hash.includes("access_token") || 
+                                  window.location.hash.includes("refresh_token") ||
+                                  urlParams.get("code") || 
+                                  hashParams.get("code");
+        
+        if (hasOAuthCallback) {
+          // OAuth callback detected - wait for Supabase to process it
+          // Give Supabase time to process the hash and create session
+          // Try multiple times with increasing delays
+          let session = null;
+          let sessionError = null;
+          
+          for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 200 * (attempt + 1)));
+            const result = await supabase.auth.getSession();
+            session = result.data?.session;
+            sessionError = result.error;
+            
+            if (session?.user) {
+              break;
+            }
+          }
+          
+          if (session?.user) {
+            const twitterHandle = session.user.user_metadata?.user_name;
+            const avatarUrl = session.user.user_metadata?.avatar_url;
+            
+            if (twitterHandle) {
+              // Store handle and avatar in localStorage
+              setStoredPlayerName(twitterHandle);
+              if (avatarUrl) {
+                setStoredTwitterAvatar(twitterHandle, avatarUrl);
+                setIsTwitterAuth(true); // Flag to show avatar
+              }
+              
+              // Set player name and close overlay
+              setPlayerName(twitterHandle);
+              setShowOverlay(false);
+              
+              // Restore user data from database (non-blocking)
+              restoreUserDataFromDB(twitterHandle)
+                .then((hasData) => {
+                  if (hasData) {
+                    const profile = getUserProfile(twitterHandle);
+                    if (profile.hasProfile && profile.bestGameMode) {
+                      getUserBestScore(twitterHandle, profile.bestGameMode)
+                        .then((result) => {
+                          if (result.data) {
+                            setUserProfile(result.data);
+                          }
+                        })
+                        .catch(() => {
+                          // Silently fail
+                        });
+                    }
+                  }
+                })
+                .catch(() => {
+                  // Silently fail
+                });
+            }
+          } else {
+            // Fallback: try to extract from hash if session isn't available
             try {
-              const hasData = await restoreUserDataFromDB(twitterHandle);
-              if (hasData) {
-                const profile = getUserProfile(twitterHandle);
-                if (profile.hasProfile && profile.bestGameMode) {
-                  const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
-                  if (result.data) {
-                    setUserProfile(result.data);
+              const hash = window.location.hash;
+              if (hash.includes("access_token")) {
+                // Try to decode the JWT token to extract user data
+                const params = new URLSearchParams(hash.substring(1));
+                const accessToken = params.get("access_token");
+                if (accessToken) {
+                  // Decode JWT payload (base64)
+                  const parts = accessToken.split(".");
+                  if (parts.length === 3) {
+                    const payload = JSON.parse(atob(parts[1]));
+                    const twitterHandle = payload?.user_name || payload?.preferred_username;
+                    const avatarUrl = payload?.avatar_url || payload?.picture;
+                    
+                    if (twitterHandle) {
+                      setStoredPlayerName(twitterHandle);
+                      if (avatarUrl) {
+                        setStoredTwitterAvatar(twitterHandle, avatarUrl);
+                        setIsTwitterAuth(true);
+                      }
+                      setPlayerName(twitterHandle);
+                      setShowOverlay(false);
+                    }
                   }
                 }
               }
-            } catch (error) {
-              logError("Error restoring user data:", error);
+            } catch (err) {
+              // Silently fail
             }
-            
-            log("Twitter user found - setting sessionChecked and sessionLoading to false");
-            setSessionChecked(true);
-            setSessionLoading(false);
-            log("sessionLoading should now be: false");
-            return;
           }
+          
+          // Sign out immediately to discard session
+          await supabase.auth.signOut();
+          
+          // Clean up URL
+          window.history.replaceState({}, "", window.location.pathname);
+          
+          // After OAuth callback, check if we successfully stored the name
+          // If so, ensure overlay is closed
+          const storedNameAfterCallback = getStoredPlayerName();
+          if (storedNameAfterCallback && storedNameAfterCallback !== "you") {
+            setPlayerName(storedNameAfterCallback);
+            setShowOverlay(false);
+          }
+          
+          return; // Done with OAuth callback
         }
 
-        // Restore name-based user state (if not Twitter auth)
+        // No OAuth callback - restore from localStorage (works for both name-based and Twitter users)
       const storedName = getStoredPlayerName();
         if (storedName && storedName !== "you") {
         setPlayerName(storedName);
           setShowOverlay(false);
           
-          try {
-        const hasData = await restoreUserDataFromDB(storedName);
+          // Check if this is a Twitter user (has avatar stored)
+          const avatarUrl = getStoredTwitterAvatar(storedName);
+          if (avatarUrl) {
+            setIsTwitterAuth(true);
+          }
+          
+          // Restore user data from database (non-blocking)
+          restoreUserDataFromDB(storedName)
+            .then((hasData) => {
         if (hasData) {
           const profile = getUserProfile(storedName);
           if (profile.hasProfile && profile.bestGameMode) {
-            const result = await getUserBestScore(storedName, profile.bestGameMode);
+                  getUserBestScore(storedName, profile.bestGameMode)
+                    .then((result) => {
             if (result.data) {
               setUserProfile(result.data);
             }
+                    })
+                    .catch(() => {
+                      // Silently fail
+                    });
           }
         }
-          } catch (error) {
-            logError("Error restoring user data:", error);
-          }
-        } else if (!session?.user) {
-          // No session and no stored name - show overlay
-        setShowOverlay(true);
+            })
+            .catch(() => {
+              // Silently fail
+            });
+      } else {
+          // No stored name - show overlay
+          setShowOverlay(true);
         }
-        
-        setSessionChecked(true);
       } catch (error) {
-        logError("Error in checkSession:", error);
-        setSessionChecked(true);
-      } finally {
-        log("=== SESSION CHECK COMPLETE ===");
-        log("Setting sessionLoading to: false");
-        setSessionLoading(false);
-        log("sessionLoading should now be: false");
+        // Fallback: show overlay if something goes wrong
+        setShowOverlay(true);
       }
     };
 
-    checkSession();
-
-    // Listen for auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      log("=== AUTH STATE CHANGE ===");
-      log("Event:", event);
-      log("Session:", session);
-      log("Session user:", session?.user);
-      log("Session access_token:", session?.access_token ? "Present" : "Missing");
-      log("Session refresh_token:", session?.refresh_token ? "Present" : "Missing");
-      log("Session expires_at:", session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : "N/A");
-      log("=========================");
-      
-      if (session?.user) {
-        const twitterHandle = session.user.user_metadata?.user_name;
-        
-        if (twitterHandle) {
-          setShowOverlay(false);
-          setTwitterUser(session.user);
-          setIsTwitterAuth(true);
-          setPlayerName(twitterHandle);
-          setStoredPlayerName(twitterHandle);
-          log("=== AUTH STATE CHANGE - Twitter user signed in ===");
-          log("Setting sessionLoading to: false");
-          setSessionLoading(false);
-          setSessionChecked(true);
-          log("sessionLoading should now be: false");
-          
-          try {
-            const hasData = await restoreUserDataFromDB(twitterHandle);
-            if (hasData) {
-              const profile = getUserProfile(twitterHandle);
-              if (profile.hasProfile && profile.bestGameMode) {
-                const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
-                if (result.data) {
-                  setUserProfile(result.data);
-                }
-              }
-            }
-          } catch (error) {
-            logError("Error restoring user data in auth state change:", error);
-          }
-          
-          // Clean up URL hash if present (implicit flow tokens)
-          if (window.location.hash.includes("access_token") || window.location.hash.includes("refresh_token")) {
-            window.history.replaceState({}, "", window.location.pathname);
-          }
-          
-          requestAnimationFrame(() => appBodyRef.current?.focus());
-        }
-      } else {
-        // Session ended
-        setTwitterUser(null);
-        setIsTwitterAuth(false);
-        log("=== AUTH STATE CHANGE - Session ended ===");
-        log("Setting sessionLoading to: false");
-        setSessionLoading(false);
-        setSessionChecked(true);
-        log("sessionLoading should now be: false");
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    initializeApp();
   }, []);
 
-  // Log sessionLoading and scoresLoading whenever they change
-  useEffect(() => {
-    log("=== STATE UPDATE: sessionLoading / scoresLoading ===");
-    log("sessionLoading:", sessionLoading);
-    log("scoresLoading:", scoresLoading);
-    log("isTwitterAuth:", isTwitterAuth);
-    log("playerName:", playerName);
-    log("showUserMenu:", showUserMenu);
-  }, [sessionLoading, scoresLoading, isTwitterAuth, playerName, showUserMenu]);
 
   // Overlay is already set synchronously in useState initializer above
   // No need for this useEffect
@@ -1115,9 +1103,11 @@ export default function Home() {
     appBodyRef.current?.focus();
   }, [initGame]);
 
-  const handleShare = useCallback(async (platform?: "twitter" | "facebook" | "linkedin") => {
+  const handleShare = useCallback(
+    async (platform?: "twitter" | "facebook" | "linkedin") => {
     const shareText = `I scored ${results.score} on Proof of Speed! ${results.lps} letters per second with ${results.accuracy} accuracy. Can you beat Etherlink's sub-blocks?`;
-    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+      const shareUrl =
+        typeof window !== "undefined" ? window.location.href : "";
     
     // Capture screenshot of results screen
     let screenshotFile: File | null = null;
@@ -1139,15 +1129,19 @@ export default function Home() {
         });
         
         if (blob) {
-          screenshotFile = new File([blob], "beat-the-chain-results.png", { type: "image/png" });
+            screenshotFile = new File([blob], "beat-the-chain-results.png", {
+              type: "image/png",
+            });
         }
       } catch (err) {
-        log("Failed to capture screenshot:", err);
+        // Failed to capture screenshot - continue without it
       }
     }
     
     if (platform === "twitter") {
-      const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+        const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+          shareText
+        )}&url=${encodeURIComponent(shareUrl)}`;
       window.open(twitterUrl, "_blank", "width=550,height=420");
       // Download screenshot for manual attachment
       if (screenshotFile) {
@@ -1161,7 +1155,9 @@ export default function Home() {
         URL.revokeObjectURL(url);
       }
     } else if (platform === "facebook") {
-      const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+        const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+          shareUrl
+        )}`;
       window.open(facebookUrl, "_blank", "width=550,height=420");
       // Download screenshot for manual attachment
       if (screenshotFile) {
@@ -1175,7 +1171,9 @@ export default function Home() {
         URL.revokeObjectURL(url);
       }
     } else if (platform === "linkedin") {
-      const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`;
+        const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+          shareUrl
+        )}`;
       window.open(linkedinUrl, "_blank", "width=550,height=420");
       // Download screenshot for manual attachment
       if (screenshotFile) {
@@ -1208,10 +1206,10 @@ export default function Home() {
                 url: shareUrl,
               });
             } catch (err2) {
-              log("Share cancelled or failed:", err2);
+              // Share cancelled or failed
             }
           } else {
-            log("Share cancelled");
+            // Share cancelled
           }
         }
       } else if (navigator.share) {
@@ -1223,7 +1221,7 @@ export default function Home() {
             url: shareUrl,
           });
         } catch (err) {
-          log("Share cancelled or failed:", err);
+          // Share cancelled or failed
         }
       } else {
         // Fallback: copy to clipboard
@@ -1231,21 +1229,22 @@ export default function Home() {
           await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
           alert("Results copied to clipboard!");
         } catch (err) {
-          log("Failed to copy to clipboard:", err);
+          // Failed to copy to clipboard
         }
       }
     }
-  }, [results]);
+    },
+    [results]
+  );
   
   // NEW: Handler for when the overlay is completed
   const handleOnboardingComplete = async (name: string) => {
     const finalName = name || "you";
     setPlayerName(finalName);
     setStoredPlayerName(finalName);
-    
+
     // Mark as NOT Twitter auth when using name
     setIsTwitterAuth(false);
-    setTwitterUser(null);
     
     // Check if user exists in database and restore their data
     const hasData = await restoreUserDataFromDB(finalName);
@@ -1266,68 +1265,35 @@ export default function Home() {
     requestAnimationFrame(() => appBodyRef.current?.focus());
   };
 
-  // Handler for Twitter sign-in
+  // Handler for Twitter sign-in - just start OAuth flow
+  // The OAuth callback will extract handle/avatar and discard session
   const handleSignInWithTwitter = async () => {
     try {
-      // First, check if user is already signed in
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.user) {
-        const twitterHandle = session.user.user_metadata?.user_name;
-        if (twitterHandle) {
-          // User is already signed in with Twitter, use their handle immediately
-          setTwitterUser(session.user);
-          setIsTwitterAuth(true);
-          setPlayerName(twitterHandle);
-          setStoredPlayerName(twitterHandle);
-          
-          // Restore user data from database if available
-          const hasData = await restoreUserDataFromDB(twitterHandle);
-          if (hasData) {
-            const profile = getUserProfile(twitterHandle);
-            if (profile.hasProfile && profile.bestGameMode) {
-              const result = await getUserBestScore(twitterHandle, profile.bestGameMode);
-              if (result.data) {
-                setUserProfile(result.data);
-              }
-            }
-          }
-          
-          // Close overlay and let them play
-          setShowOverlay(false);
-          requestAnimationFrame(() => appBodyRef.current?.focus());
-          return;
-        }
-      }
-      
-      // No existing session, start OAuth flow
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "twitter",
         options: {
           redirectTo: `${window.location.origin}${window.location.pathname}`,
-          skipBrowserRedirect: false, // Allow redirect for implicit flow
+          skipBrowserRedirect: false,
         },
       });
-      
+
       if (error) {
-        logError("Sign in error:", error);
         alert(`Sign in error: ${error.message}`);
       }
-      // The redirect will happen automatically, and we'll handle it in the auth callback useEffect
+      // The redirect will happen automatically, and we'll handle it in the OAuth callback useEffect
     } catch (err) {
-      logError("Unexpected error during sign in:", err);
-      alert(`Unexpected error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      alert(
+        `Unexpected error: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
     }
   };
 
   const handleResetPlayer = async () => {
-    clearPlayerData(playerName);
+    clearPlayerData(playerName); // This clears localStorage including avatar
     
-    // Always sign out to end the session
-    await supabase.auth.signOut();
-    setTwitterUser(null);
     setIsTwitterAuth(false);
-    
     setPlayerName("you");
     setUserProfile(null);
     setAllUserScores([]);
@@ -1340,18 +1306,31 @@ export default function Home() {
     "flex h-screen flex-col group font-sans",
     testFinished ? "test-finished overflow-y-auto" : "overflow-hidden",
     testStarted ? "test-started" : "",
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div id="app-body" className={containerClasses} ref={appBodyRef} tabIndex={-1}>
-      <Confetti ref={confettiRef} className="fixed top-0 left-0 z-[100] w-full h-full pointer-events-none" />
+    <div
+      id="app-body"
+      className={containerClasses}
+      ref={appBodyRef}
+      tabIndex={-1}
+    >
+      <Confetti
+        ref={confettiRef}
+        className="fixed top-0 left-0 z-[100] w-full h-full pointer-events-none"
+      />
       
       {/* NEW: Render the overlay with AnimatePresence */}
       <AnimatePresence>
-        {showOverlay && <OnboardingOverlay onComplete={handleOnboardingComplete} onSignInWithTwitter={handleSignInWithTwitter} />}
+        {showOverlay && (
+          <OnboardingOverlay
+            onComplete={handleOnboardingComplete}
+            onSignInWithTwitter={handleSignInWithTwitter}
+          />
+        )}
       </AnimatePresence>
-
-
 
       <div id="app-content" className="flex flex-grow flex-col">
         <header className="p-6">
@@ -1378,83 +1357,44 @@ export default function Home() {
                 </button>
                 <div className="relative">
               <button
-                onClick={async () => {
+                    onClick={async () => {
                       // Toggle user profile menu
                   if (playerName && playerName !== "you") {
                         // Always toggle the menu first for immediate feedback
                         const newMenuState = !showUserMenu;
                         setShowUserMenu(newMenuState);
-                        
+
                         // Only fetch scores if we're opening the menu
                         if (newMenuState) {
-                          log("=== SETTINGS DROPDOWN - OPENING ===");
-                          log("sessionLoading:", sessionLoading);
-                          log("scoresLoading:", scoresLoading);
-                          log("playerName:", playerName);
-                          log("isTwitterAuth:", isTwitterAuth);
                           setScoresLoading(true);
-                          log("After setScoresLoading(true) - scoresLoading should be: true");
-                          
-                          // Don't wait for session check - queries are public reads and work immediately
+
+                          // Queries are public reads and work immediately
                           // Same logic for name-based and Twitter users
-                          
+
                           try {
-                            log("=== SETTINGS DROPDOWN - FETCHING SCORES ===");
-                            log("playerName:", playerName);
-                            log("isTwitterAuth:", isTwitterAuth);
-                            log("sessionLoading at fetch start:", sessionLoading);
-                            log("scoresLoading at fetch start:", true);
-                            log("Note: Queries work the same for name-based and Twitter users (public reads by player_name)");
-                            
                             // No session check needed - queries are public reads by player_name
                             // Works the same way for both name-based and Twitter auth users
-                            
+
                         // Fetch all scores for all game modes
-                            log("Calling getAllUserScores...");
-                            log("Time before getAllUserScores:", new Date().toISOString());
-                            const queryStartTime = Date.now();
-                            
-                            // IMPORTANT: Don't await anything before this - queries should start immediately
                             const result = await getAllUserScores(playerName);
-                            
-                            const queryEndTime = Date.now();
-                            log(`getAllUserScores completed in ${queryEndTime - queryStartTime}ms`);
-                            log("Time after getAllUserScores:", new Date().toISOString());
-                            log("getAllUserScores result:", result);
-                            log("Result data length:", result.data?.length || 0);
-                            log("Result error:", result.error);
-                            
-                            // Log full error details if present
-                            if (result.error) {
-                              logError("Error details:", JSON.stringify(result.error, null, 2));
-                            }
-                            
+
                           if (result.data && result.data.length > 0) {
-                              log("Setting scores in state:", result.data);
                             setAllUserScores(result.data);
                             // Set the best score as the primary profile (for backward compatibility)
-                            const bestScore = result.data.reduce((best, current) => 
+                              const bestScore = result.data.reduce(
+                                (best, current) =>
                               current.score > best.score ? current : best
                             );
                             setUserProfile(bestScore);
                         } else {
-                              log("No scores found for player:", playerName);
-                              if (result.error) {
-                                logError("Error from getAllUserScores:", result.error);
-                              }
                             setAllUserScores([]);
                           setUserProfile(null);
                         }
-                            log("=== SETTINGS DROPDOWN - DONE ===");
                           } catch (error) {
-                            logError("Error fetching user scores:", error);
-                            logError("Error stack:", error instanceof Error ? error.stack : "No stack");
                             setAllUserScores([]);
                             setUserProfile(null);
                           } finally {
-                            log("Setting scoresLoading to false");
                             setScoresLoading(false);
-                            log("After setScoresLoading(false) - scoresLoading should be: false");
                           }
                         } else {
                           // Closing menu, reset loading state
@@ -1484,30 +1424,32 @@ export default function Home() {
                         className="absolute top-full mt-2 w-64 rounded-lg bg-dark-kbd border border-dark-dim/20 shadow-2xl z-50 overflow-hidden"
                         style={{ 
                           right: 0,
-                          transform: 'translateX(0)',
-                          maxWidth: 'min(256px, calc(100vw - 3rem))'
+                          transform: "translateX(0)",
+                          maxWidth: "min(256px, calc(100vw - 3rem))",
                         }}
                   >
                     <div className="p-4 space-y-3 font-mono">
                           {playerName && playerName !== "you" && (
                       <div className="border-b border-dark-dim/20 pb-3">
-                        <div className="flex items-center gap-3">
-                          {isTwitterAuth && twitterUser?.user_metadata?.avatar_url ? (
-                            <img
-                              src={twitterUser.user_metadata.avatar_url}
-                              alt="Profile"
-                              className="w-10 h-10 rounded-full flex-shrink-0"
-                            />
-                          ) : (
-                            <div 
-                              className="w-10 h-10 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: "#39ff9c" }}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-lg font-bold text-dark-highlight truncate">@{playerName}</div>
-                          </div>
-                        </div>
+                              <div className="flex items-center gap-3">
+                                {isTwitterAuth && getStoredTwitterAvatar(playerName) ? (
+                                  <img
+                                    src={getStoredTwitterAvatar(playerName)!}
+                                    alt="Profile"
+                                    className="w-10 h-10 rounded-full flex-shrink-0"
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-10 h-10 rounded-full flex-shrink-0"
+                                    style={{ backgroundColor: "#39ff9c" }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-lg font-bold text-dark-highlight truncate">
+                                    @{playerName}
+                                  </div>
+                                </div>
+                              </div>
                       </div>
                           )}
                           {scoresLoading ? (
@@ -1515,22 +1457,13 @@ export default function Home() {
                             <div className="space-y-3">
                               {/* Scores loading placeholders */}
                               {[15, 30, 60].map((mode) => (
-                                <div key={mode} className="flex items-center justify-between">
+                                <div
+                                  key={mode}
+                                  className="flex items-center justify-between"
+                                >
                                   <motion.div
                                     className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '80px' }}
-                                    animate={{
-                                      opacity: [0.4, 0.8, 0.4],
-                                    }}
-                                    transition={{
-                                      duration: 1.5,
-                                      repeat: Infinity,
-                                      ease: "easeInOut"
-                                    }}
-                                  />
-                                  <motion.div
-                                    className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '60px' }}
+                                    style={{ width: "80px" }}
                                     animate={{
                                       opacity: [0.4, 0.8, 0.4],
                                     }}
@@ -1538,7 +1471,19 @@ export default function Home() {
                                       duration: 1.5,
                                       repeat: Infinity,
                                       ease: "easeInOut",
-                                      delay: 0.2
+                                    }}
+                                  />
+                                  <motion.div
+                                    className="h-4 rounded bg-dark-dim/30"
+                                    style={{ width: "60px" }}
+                                    animate={{
+                                      opacity: [0.4, 0.8, 0.4],
+                                    }}
+                                    transition={{
+                                      duration: 1.5,
+                                      repeat: Infinity,
+                                      ease: "easeInOut",
+                                      delay: 0.2,
                                     }}
                                   />
                                 </div>
@@ -1548,19 +1493,7 @@ export default function Home() {
                                 <div className="flex items-center justify-between">
                                   <motion.div
                                     className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '70px' }}
-                                    animate={{
-                                      opacity: [0.4, 0.8, 0.4],
-                                    }}
-                                    transition={{
-                                      duration: 1.5,
-                                      repeat: Infinity,
-                                      ease: "easeInOut"
-                                    }}
-                                  />
-                                  <motion.div
-                                    className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '90px' }}
+                                    style={{ width: "70px" }}
                                     animate={{
                                       opacity: [0.4, 0.8, 0.4],
                                     }}
@@ -1568,26 +1501,26 @@ export default function Home() {
                                       duration: 1.5,
                                       repeat: Infinity,
                                       ease: "easeInOut",
-                                      delay: 0.3
+                                    }}
+                                  />
+                                  <motion.div
+                                    className="h-4 rounded bg-dark-dim/30"
+                                    style={{ width: "90px" }}
+                                    animate={{
+                                      opacity: [0.4, 0.8, 0.4],
+                                    }}
+                                    transition={{
+                                      duration: 1.5,
+                                      repeat: Infinity,
+                                      ease: "easeInOut",
+                                      delay: 0.3,
                                     }}
                                   />
                                 </div>
                                 <div className="flex items-center justify-between">
                                   <motion.div
                                     className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '75px' }}
-                                    animate={{
-                                      opacity: [0.4, 0.8, 0.4],
-                                    }}
-                                    transition={{
-                                      duration: 1.5,
-                                      repeat: Infinity,
-                                      ease: "easeInOut"
-                                    }}
-                                  />
-                                  <motion.div
-                                    className="h-4 rounded bg-dark-dim/30"
-                                    style={{ width: '65px' }}
+                                    style={{ width: "75px" }}
                                     animate={{
                                       opacity: [0.4, 0.8, 0.4],
                                     }}
@@ -1595,7 +1528,19 @@ export default function Home() {
                                       duration: 1.5,
                                       repeat: Infinity,
                                       ease: "easeInOut",
-                                      delay: 0.4
+                                    }}
+                                  />
+                                  <motion.div
+                                    className="h-4 rounded bg-dark-dim/30"
+                                    style={{ width: "65px" }}
+                                    animate={{
+                                      opacity: [0.4, 0.8, 0.4],
+                                    }}
+                                    transition={{
+                                      duration: 1.5,
+                                      repeat: Infinity,
+                                      ease: "easeInOut",
+                                      delay: 0.4,
                                     }}
                                   />
                                 </div>
@@ -1605,7 +1550,10 @@ export default function Home() {
                             <>
                               <div className="space-y-2">
                                 {allUserScores.map((score) => (
-                                  <div key={score.game_mode} className="flex items-center justify-between">
+                                  <div
+                                    key={score.game_mode}
+                                    className="flex items-center justify-between"
+                                  >
                                     <div className="text-xs text-dark-dim">
                                       {score.game_mode} words
                             </div>
@@ -1618,18 +1566,28 @@ export default function Home() {
                               {userProfile && (
                                 <div className="border-t border-dark-dim/20 pt-3 mt-3 space-y-2">
                                   <div className="flex items-center justify-between">
-                                    <div className="text-xs text-dark-dim">best rank</div>
-                                    <div className="text-sm font-bold text-dark-main">{getRankNameForDropdown(userProfile.rank)}</div>
+                                    <div className="text-xs text-dark-dim">
+                                      best rank
+                                    </div>
+                                    <div className="text-sm font-bold text-dark-main">
+                                      {getRankNameForDropdown(userProfile.rank)}
+                                    </div>
                           </div>
                                   <div className="flex items-center justify-between">
-                                    <div className="text-xs text-dark-dim">best score</div>
-                                    <div className="text-sm font-bold text-dark-main">{userProfile.score.toFixed(2)}</div>
+                                    <div className="text-xs text-dark-dim">
+                                      best score
+                                    </div>
+                                    <div className="text-sm font-bold text-dark-main">
+                                      {userProfile.score.toFixed(2)}
+                                    </div>
                           </div>
                         </div>
                               )}
                             </>
                           ) : (
-                            <div className="text-sm text-dark-dim">No scores yet</div>
+                            <div className="text-sm text-dark-dim">
+                              No scores yet
+                            </div>
                       )}
                       <div className="border-t border-dark-dim/20 pt-3 mt-3">
                         <button
@@ -1663,10 +1621,15 @@ export default function Home() {
 
         <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4 group-[.test-finished]:-mt-5">
           <div className="text-center">
-            <span className="font-nfs text-[2.8125rem] text-dark-highlight">Proof of Speed</span>
+            <span className="font-nfs text-[2.8125rem] text-dark-highlight">
+              Proof of Speed
+            </span>
           </div>
           <div className="flex items-center space-x-6 rounded-lg bg-dark-kbd p-2 text-sm font-mono group-[.test-finished]:hidden">
-            <button className="flex items-center space-x-1 text-dark-highlight hover:text-dark-highlight transition-colors" title="Words">
+            <button
+              className="flex items-center space-x-1 text-dark-highlight hover:text-dark-highlight transition-colors"
+              title="Words"
+            >
               <i className="fa-solid fa-hashtag h-4 w-4" />
               <span className="lowercase tracking-wider">words</span>
             </button>
@@ -1675,7 +1638,11 @@ export default function Home() {
               {GAME_MODES.map((mode) => (
                 <button
                   key={mode}
-                  className={`lowercase tracking-wider transition-colors cursor-pointer relative ${gameMode === mode ? "text-dark-highlight" : "hover:text-dark-main"}`}
+                  className={`lowercase tracking-wider transition-colors cursor-pointer relative ${
+                    gameMode === mode
+                      ? "text-dark-highlight"
+                      : "hover:text-dark-main"
+                  }`}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -1725,19 +1692,28 @@ export default function Home() {
                     transition={{ duration: 0.05 }}
                     className="inline-block pointer-events-none"
                   >
-                    {hoveredMode === mode && animatedNumber !== null ? animatedNumber : mode}
+                    {hoveredMode === mode && animatedNumber !== null
+                      ? animatedNumber
+                      : mode}
                   </motion.span>
                 </button>
               ))}
             </div>
           </div>
+          {!showOverlay && !testFinished && playerName && playerName !== "you" && (
+            <div className="text-sm font-mono text-dark-dim hidden group-[.test-finished]:!hidden">
+              Hi, @{playerName}
+            </div>
+          )}
         </div>
 
         <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
           <button
             id="language-btn"
               className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors group-[.test-finished]:hidden ${
-                testStarted ? 'text-dark-dim hover:text-dark-highlight' : 'text-dark-highlight'
+              testStarted
+                ? "text-dark-dim hover:text-dark-highlight"
+                : "text-dark-highlight"
               }`}
           >
               <i className="fa-solid fa-globe h-4 w-4" />
@@ -1749,8 +1725,19 @@ export default function Home() {
             className="relative flex min-h-[200px] w-full max-w-5xl items-center justify-center group-[.test-finished]:hidden"
             onClick={() => appBodyRef.current?.focus()}
           >
-            <div id="words-wrapper" className="relative max-w-5xl mx-auto font-mono" style={{ paddingBottom: gameMode === 60 ? '4rem' : gameMode === 30 ? '3rem' : '2rem' }}>
-              <div id="cursor" ref={cursorRef} className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block z-10" />
+            <div
+              id="words-wrapper"
+              className="relative max-w-5xl mx-auto font-mono"
+              style={{
+                paddingBottom:
+                  gameMode === 60 ? "4rem" : gameMode === 30 ? "3rem" : "2rem",
+              }}
+            >
+              <div
+                id="cursor"
+                ref={cursorRef}
+                className="animate-blink absolute mt-[-2px] h-[2.25rem] w-[2px] bg-dark-highlight transition-all duration-100 hidden group-[.test-started]:block z-10"
+              />
               
               <div 
                 id="words" 
@@ -1760,7 +1747,7 @@ export default function Home() {
                   fontSize: "32px", 
                   lineHeight: "1.5em", 
                   color: "#646669",
-                  opacity: textFocused || testStarted ? 1 : 0.2
+                  opacity: textFocused || testStarted ? 1 : 0.2,
                 }}
                 onClick={() => {
                   if (!testStarted && !testFinished) {
@@ -1780,18 +1767,31 @@ export default function Home() {
                   />
                   {testStarted && (
                     <div className="absolute bottom-[-60px] left-0 text-sm text-dark-dim font-mono mt-4">
-                      Creating Super Confirmations in &lt;20ms on Etherlink.......
+                  Creating Super Confirmations in &lt;20ms on Etherlink.......
                     </div>
               )}
             </div>
           </div>
 
           {/* --- NEW RESULTS SCREEN LAYOUT --- */}
-          <div id="results-screen" ref={resultsScreenRef} className="text-center font-mono hidden group-[.test-finished]:block w-full max-w-4xl px-6">
+          <div
+            id="results-screen"
+            ref={resultsScreenRef}
+            className="text-center font-mono hidden group-[.test-finished]:block w-full max-w-4xl px-6"
+          >
             {/* 1. Big Score */}
             <div className="text-center mb-10">
-              <div className="text-lg text-dark-dim" title="score = letter per second x accuracy">Final Score</div>
-              <div id="result-score" className="text-7xl font-bold text-dark-highlight" title="score = letter per second x accuracy">
+              <div
+                className="text-lg text-dark-dim"
+                title="score = letter per second x accuracy"
+              >
+                Final Score
+              </div>
+              <div
+                id="result-score"
+                className="text-7xl font-bold text-dark-highlight"
+                title="score = letter per second x accuracy"
+              >
                 <CountUp value={parseFloat(results.score) || 0} decimals={2} />
               </div>
             </div>
@@ -1801,15 +1801,40 @@ export default function Home() {
               {/* Column 1: Core Stats */}
               <div className="flex flex-col space-y-6">
                 <div>
-                  <div className="text-lg text-dark-dim text-left" title="letter per second">letter per second</div>
-                  <div id="result-lps" className="text-4xl font-bold text-dark-main text-left" title="letter per second">
-                    <CountUp value={parseFloat(results.lps) || 0} decimals={2} />
+                  <div
+                    className="text-lg text-dark-dim text-left"
+                    title="letter per second"
+                  >
+                    letter per second
+                  </div>
+                  <div
+                    id="result-lps"
+                    className="text-4xl font-bold text-dark-main text-left"
+                    title="letter per second"
+                  >
+                    <CountUp
+                      value={parseFloat(results.lps) || 0}
+                      decimals={2}
+                    />
                   </div>
                 </div>
                 <div>
-                  <div className="text-lg text-dark-dim text-left" title="accuracy">acc</div>
-                  <div id="result-acc" className="text-4xl font-bold text-dark-main text-left" title="accuracy">
-                    <CountUp value={parseFloat(results.accuracy.replace('%', '')) || 0} decimals={1} suffix="%" />
+                  <div
+                    className="text-lg text-dark-dim text-left"
+                    title="accuracy"
+                  >
+                    acc
+                  </div>
+                  <div
+                    id="result-acc"
+                    className="text-4xl font-bold text-dark-main text-left"
+                    title="accuracy"
+                  >
+                    <CountUp
+                      value={parseFloat(results.accuracy.replace("%", "")) || 0}
+                      decimals={1}
+                      suffix="%"
+                    />
                   </div>
                 </div>
               </div>
@@ -1817,29 +1842,50 @@ export default function Home() {
               {/* Column 2: Comparison Stats */}
               <div className="flex flex-col space-y-6">
                 <div>
-                  <div className="text-lg text-dark-dim text-left">your speed</div>
-                  <div id="result-ms" className="text-3xl font-bold text-dark-main text-left">
-                    <CountUp value={parseFloat(results.msPerLetter) || 0} decimals={0} /> <span className="text-xl">ms/letter</span>
+                  <div className="text-lg text-dark-dim text-left">
+                    your speed
+                  </div>
+                  <div
+                    id="result-ms"
+                    className="text-3xl font-bold text-dark-main text-left"
+                  >
+                    <CountUp
+                      value={parseFloat(results.msPerLetter) || 0}
+                      decimals={0}
+                    />{" "}
+                    <span className="text-xl">ms/letter</span>
                   </div>
                 </div>
                 <div>
                   <div className="text-lg text-dark-dim text-left">time</div>
-                  <div id="result-time" className="text-3xl font-bold text-dark-main text-left">
-                    <CountUp value={parseFloat(results.time.replace('s', '')) || 0} decimals={2} suffix="s" />
+                  <div
+                    id="result-time"
+                    className="text-3xl font-bold text-dark-main text-left"
+                  >
+                    <CountUp
+                      value={parseFloat(results.time.replace("s", "")) || 0}
+                      decimals={2}
+                      suffix="s"
+                    />
                   </div>
                 </div>
               </div>
 
               {/* Column 3: Real Leaderboard */}
               <div className="flex flex-col space-y-2 pb-2">
-                <div className="text-lg text-dark-dim text-left">rankings (words: {gameMode})</div>
+                <div className="text-lg text-dark-dim text-left">
+                  rankings (words: {gameMode})
+                </div>
                 {rankingsLoading ? (
                   <div className="text-sm text-dark-dim">Loading...</div>
                 ) : rankings.length === 0 ? (
                   <div className="text-sm text-dark-dim">No rankings yet</div>
-                ) : (() => {
+                ) : (
+                  (() => {
                   // Find current user's position
-                  const userIndex = rankings.findIndex(entry => entry.player_name === playerName);
+                    const userIndex = rankings.findIndex(
+                      (entry) => entry.player_name === playerName
+                    );
                   const userPosition = userIndex >= 0 ? userIndex + 1 : null;
                   
                   // Get top 4 entries
@@ -1858,30 +1904,55 @@ export default function Home() {
                   return (
                     <>
                       {displayEntries.map((entry, idx) => {
-                        const isCurrentUser = entry.player_name === playerName;
+                          const isCurrentUser =
+                            entry.player_name === playerName;
                         // Calculate actual position
-                        const actualPosition = isCurrentUser && userPosition 
+                          const actualPosition =
+                            isCurrentUser && userPosition
                           ? userPosition 
                           : isUserInTop4
                             ? idx + 1
                             : idx < 3
                               ? idx + 1
                               : userPosition;
-                        const textColor = idx === 0 && !isCurrentUser
+                          const textColor =
+                            idx === 0 && !isCurrentUser
                           ? "text-dark-highlight" 
                           : isCurrentUser 
                             ? "text-white" 
                             : "text-dark-dim";
                         return (
-                          <div key={entry.id} className={`flex justify-between text-xl ${textColor}`} style={{ lineHeight: '1.6', minHeight: '1.75rem', paddingBottom: '0.125rem' }}>
-                            <span className="truncate mr-2" style={{ lineHeight: '1.6', display: 'inline-block' }}>{actualPosition}. {entry.player_name}</span>
-                            <span className="flex-shrink-0" style={{ lineHeight: '1.6' }}>{entry.score.toFixed(2)}</span>
+                            <div
+                              key={entry.id}
+                              className={`flex justify-between text-xl ${textColor}`}
+                              style={{
+                                lineHeight: "1.6",
+                                minHeight: "1.75rem",
+                                paddingBottom: "0.125rem",
+                              }}
+                            >
+                              <span
+                                className="truncate mr-2"
+                                style={{
+                                  lineHeight: "1.6",
+                                  display: "inline-block",
+                                }}
+                              >
+                                {actualPosition}. {entry.player_name}
+                              </span>
+                              <span
+                                className="flex-shrink-0"
+                                style={{ lineHeight: "1.6" }}
+                              >
+                                {entry.score.toFixed(2)}
+                              </span>
                           </div>
                         );
                       })}
                     </>
                   );
-                })()}
+                  })()
+                )}
               </div>
             </div>
 
@@ -1890,15 +1961,22 @@ export default function Home() {
               <div className="text-center mb-6">
                 {(() => {
                   const msPerLetter = parseFloat(results.msPerLetter) || 0;
-                  const isFasterThanSubblocks = msPerLetter < 20 && results.speedComparison === "Super Conf.";
+                  const isFasterThanSubblocks =
+                    msPerLetter < 20 &&
+                    results.speedComparison === "Super Conf.";
                   
                   return (
                     <div className="flex items-start justify-center gap-8 flex-wrap">
                       <div className="flex flex-col">
                         <div className="text-lg text-dark-dim mb-2">
-                          {isFasterThanSubblocks ? "You were faster than" : "You were as fast as"}
+                          {isFasterThanSubblocks
+                            ? "You were faster than"
+                            : "You were as fast as"}
                         </div>
-                        <div id="result-speed-comparison" className="text-3xl font-bold font-nfs text-dark-highlight">
+                        <div
+                          id="result-speed-comparison"
+                          className="text-3xl font-bold font-nfs text-dark-highlight"
+                        >
                           {results.speedComparison}
                         </div>
                       </div>
@@ -1906,7 +1984,10 @@ export default function Home() {
                         <div className="text-lg text-dark-dim mb-2">
                           Your Rank
                         </div>
-                        <div id="result-rank" className="text-3xl font-bold font-nfs text-dark-highlight mb-2">
+                        <div
+                          id="result-rank"
+                          className="text-3xl font-bold font-nfs text-dark-highlight mb-2"
+                        >
                           {getRankName(results.rank)}
                         </div>
                         {RANK_DESCRIPTIONS[results.rank] && (
@@ -1926,7 +2007,10 @@ export default function Home() {
                 // Only compute the position - everything else is static
                 const userMsPerLetter = parseFloat(results.msPerLetter) || 0;
                 const speedValue = getSpeedPosition(userMsPerLetter);
-                const clampedSpeedValue = Math.max(0, Math.min(100, speedValue));
+                const clampedSpeedValue = Math.max(
+                  0,
+                  Math.min(100, speedValue)
+                );
                 
                 return (
                   <div className="w-full max-w-6xl mx-auto px-4">
@@ -1941,31 +2025,32 @@ export default function Home() {
                               `linear-gradient(to right, ${GRADIENT_STRING})`,
                               `linear-gradient(to right, ${BRIGHTER_GRADIENT_STRING})`,
                               `linear-gradient(to right, ${GRADIENT_STRING})`,
-                            ]
+                            ],
                           }}
                           transition={{
                             duration: 4,
                             repeat: Infinity,
-                            ease: "easeInOut"
+                            ease: "easeInOut",
                           }}
                           style={{
-                            background: `linear-gradient(to right, ${GRADIENT_STRING})`
+                            background: `linear-gradient(to right, ${GRADIENT_STRING})`,
                           }}
                         />
                         {/* Animated Shimmer Overlay */}
                         <motion.div
                           className="absolute inset-0 h-1 rounded-sm pointer-events-none"
                           style={{
-                            background: 'linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%)',
-                            backgroundSize: '200% 100%'
+                            background:
+                              "linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%)",
+                            backgroundSize: "200% 100%",
                           }}
                           animate={{
-                            backgroundPosition: ['200% 0', '-200% 0']
+                            backgroundPosition: ["200% 0", "-200% 0"],
                           }}
                           transition={{
                             duration: 3,
                             repeat: Infinity,
-                            ease: "linear"
+                            ease: "linear",
                           }}
                         />
                 </div>
@@ -1973,33 +2058,35 @@ export default function Home() {
                       {/* Vertical Marker Lines for Each Blockchain - Adjusted for chart width */}
                       {CHAIN_POSITIONS.map((blockchain) => {
                         // Adjust position to account for chart padding
-                        const adjustedPosition = CHART_START_OFFSET + (blockchain.position / 100) * CHART_WIDTH;
+                        const adjustedPosition =
+                          CHART_START_OFFSET +
+                          (blockchain.position / 100) * CHART_WIDTH;
                         return (
                           <div
                             key={blockchain.name}
                             className="absolute top-0"
                             style={{
                               left: `${adjustedPosition}%`,
-                              transform: 'translateX(-50%)',
+                              transform: "translateX(-50%)",
                               zIndex: 10,
                             }}
                           >
                             {/* Vertical Line */}
                             <div
                               className="w-px bg-dark-dim"
-                              style={{ height: '24px' }}
+                              style={{ height: "24px" }}
                             />
                             
                             {/* Chain Label - Directly under marker */}
                             <div
                               className="absolute top-full mt-2"
                               style={{
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                minWidth: '100px',
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                minWidth: "100px",
                               }}
                             >
-                              {blockchain.name === 'Super Conf.' ? (
+                              {blockchain.name === "Super Conf." ? (
                                 // Special layout for Super Conf. - icon inline with text, time below
                                 <div className="flex items-center gap-1">
                                   {/* Text Content */}
@@ -2008,23 +2095,27 @@ export default function Home() {
                                     <div className="flex items-center gap-1">
                                       {blockchain.icon && (
                                         <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                                          <img 
-                                            src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
+                                          <img
+                                            src={
+                                              blockchain.icon === "etherlink"
+                                                ? "/etherlink-logo.svg"
+                                                : `/crypto-icons/${blockchain.icon}.svg`
+                                            }
                                             alt={blockchain.name}
                                             className="w-5 h-5"
                                           />
                                         </div>
                                       )}
-                                      <div 
+                                      <div
                                         className="text-xs font-mono font-bold leading-tight whitespace-nowrap"
                                         style={{ color: blockchain.color }}
                                       >
                                         {blockchain.name}
                                       </div>
                                     </div>
-                                    
+
                                     {/* Block Time - aligned same as other chains */}
-                                    <div 
+                                    <div
                                       className="text-[10px] font-mono leading-tight"
                                       style={{ color: blockchain.color }}
                                     >
@@ -2038,7 +2129,11 @@ export default function Home() {
                                 {blockchain.icon && (
                                   <div className="w-5 h-5 flex items-center justify-center flex-shrink-0">
                                     <img 
-                                      src={blockchain.icon === 'etherlink' ? '/etherlink-logo.svg' : `/crypto-icons/${blockchain.icon}.svg`}
+                                        src={
+                                          blockchain.icon === "etherlink"
+                                            ? "/etherlink-logo.svg"
+                                            : `/crypto-icons/${blockchain.icon}.svg`
+                                        }
                                       alt={blockchain.name}
                                       className="w-5 h-5"
                                     />
@@ -2060,7 +2155,8 @@ export default function Home() {
                                     className="text-[10px] font-mono leading-tight"
                                     style={{ color: blockchain.color }}
                                   >
-                                    {blockchain.displayTime || `${blockchain.ms.toLocaleString()}ms`}
+                                      {blockchain.displayTime ||
+                                        `${blockchain.ms.toLocaleString()}ms`}
                                   </div>
                                 </div>
                               </div>
@@ -2071,26 +2167,34 @@ export default function Home() {
                       })}
                       
                       {/* User Position Indicator - Triangle only - Sliding animation */}
-                      {clampedSpeedValue >= 0 && clampedSpeedValue <= 100 && (() => {
+                      {clampedSpeedValue >= 0 &&
+                        clampedSpeedValue <= 100 &&
+                        (() => {
                         // Adjust user position to account for chart padding
-                        const adjustedUserPosition = CHART_START_OFFSET + (clampedSpeedValue / 100) * CHART_WIDTH;
+                          const adjustedUserPosition =
+                            CHART_START_OFFSET +
+                            (clampedSpeedValue / 100) * CHART_WIDTH;
                         return (
                           <motion.div
-                            initial={{ opacity: 0, scale: 0.8, left: `${CHART_START_OFFSET}%` }}
+                              initial={{
+                                opacity: 0,
+                                scale: 0.8,
+                                left: `${CHART_START_OFFSET}%`,
+                              }}
                             animate={{ 
                               opacity: 1, 
                               scale: 1,
-                              left: `${adjustedUserPosition}%`
+                                left: `${adjustedUserPosition}%`,
                             }}
                             transition={{ 
                               duration: 1.2,
-                              ease: "easeOut"
+                                ease: "easeOut",
                             }}
                             className="absolute z-50"
                             style={{ 
-                              top: '2px',
-                              transform: 'translateX(-50%) translateY(-18px)',
-                              pointerEvents: 'none'
+                                top: "2px",
+                                transform: "translateX(-50%) translateY(-18px)",
+                                pointerEvents: "none",
                             }}
                           >
                             {/* Arrow/Triangle pointing up - positioned on the line */}
@@ -2099,10 +2203,11 @@ export default function Home() {
                               style={{
                                 width: 0,
                                 height: 0,
-                                borderLeft: '12px solid transparent',
-                                borderRight: '12px solid transparent',
-                                borderBottom: '18px solid #38FF9C',
-                                filter: 'drop-shadow(0 0 10px rgba(56, 255, 156, 1))',
+                                  borderLeft: "12px solid transparent",
+                                  borderRight: "12px solid transparent",
+                                  borderBottom: "18px solid #38FF9C",
+                                  filter:
+                                    "drop-shadow(0 0 10px rgba(56, 255, 156, 1))",
                               }}
                             />
                           </motion.div>
@@ -2136,7 +2241,9 @@ export default function Home() {
             {/* Social Sharing */}
             <div className="mt-8 pt-6 border-t border-dark-kbd">
               <div className="text-center mb-4">
-                <div className="text-sm text-dark-dim font-mono lowercase tracking-wider">share your score</div>
+                <div className="text-sm text-dark-dim font-mono lowercase tracking-wider">
+                  share your score
+                </div>
               </div>
               <div className="flex items-center justify-center space-x-4">
                 <button
@@ -2192,10 +2299,20 @@ export default function Home() {
 
                 <div className="mt-6 text-dark-main font-mono">
                   <p className="mt-2 text-dark-dim">
-                    Etherlink's new <span className="font-bold text-dark-main">sub-block latency</span> feature gives developers super-fast confirmation — around <span className="font-bold text-dark-main">10–20 milliseconds</span> — so they instantly know their transaction will make it into the next block.
+                    Etherlink's new{" "}
+                    <span className="font-bold text-dark-main">
+                      sub-block latency
+                    </span>{" "}
+                    feature gives developers super-fast confirmation — around{" "}
+                    <span className="font-bold text-dark-main">
+                      10–20 milliseconds
+                    </span>{" "}
+                    — so they instantly know their transaction will make it into
+                    the next block.
                   </p>
                   <p className="mt-2 text-dark-dim">
-                    We built this game to help you feel that speed. The pacer blocks move at 20ms. Your goal is to beat it.
+                    We built this game to help you feel that speed. The pacer
+                    blocks move at 20ms. Your goal is to beat it.
                   </p>
             </div>
 
@@ -2204,11 +2321,22 @@ export default function Home() {
                   <ol className="list-none space-y-3 mt-3 text-dark-dim">
                     <li className="flex items-center">
                       <i className="fa fa-tachometer h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                      <span><span className="font-bold text-dark-main">Race the Pacer:</span> Type the full text before the green blocks are completely formed.</span>
+                      <span>
+                        <span className="font-bold text-dark-main">
+                          Race the Pacer:
+                        </span>{" "}
+                        Type the full text before the green blocks are
+                        completely formed.
+                      </span>
                     </li>
                     <li className="flex items-center">
                       <i className="fa fa-trophy h-5 w-5 text-dark-highlight mr-3 flex-shrink-0" />
-                      <span><span className="font-bold text-dark-main">Get a Rank:</span> Your rank is based on your typing speed and accuracy.</span>
+                      <span>
+                        <span className="font-bold text-dark-main">
+                          Get a Rank:
+                        </span>{" "}
+                        Your rank is based on your typing speed and accuracy.
+                      </span>
                     </li>
                   </ol>
             </div>
@@ -2216,20 +2344,61 @@ export default function Home() {
                 <div className="mt-6 rounded-lg border border-dark-dim/30 bg-dark-bg/50 p-4 text-sm font-mono">
                   <div className="text-dark-main">
                     <div className="mb-1">
-                      <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
+                      <span className="font-bold text-dark-highlight">
+                        Blockchain Speed Ranks
+                      </span>
           </div>
                     <div className="text-dark-dim">
-                      Your typing speed determines which blockchain you match. Can you beat <a href="https://etherlink.com" target="_blank" rel="noopener noreferrer" className="text-dark-highlight hover:underline">Etherlink</a> Sub-block's 20ms speed?
+                      Your typing speed determines which blockchain you match.
+                      Can you beat{" "}
+                      <a
+                        href="https://etherlink.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-dark-highlight hover:underline"
+                      >
+                        Etherlink
+                      </a>{" "}
+                      Sub-block's 20ms speed?
       </div>
                   </div>
                   <ul className="list-disc list-inside pl-4 mt-3 space-y-1 text-sm text-dark-dim">
-                    <li><span className="font-bold text-dark-main">Etherlink:</span> &lt;=20ms / letter (Lightning fast!)</li>
-                    <li><span className="font-bold text-dark-main">Base/Unichain:</span> 200ms / letter (Super fast!)</li>
-                    <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms / letter (Super fast!)</li>
-                    <li><span className="font-bold text-dark-main">Other ETH Layer 2s:</span> 401-1000ms / letter (Fast!)</li>
-                    <li><span className="font-bold text-dark-main">Polygon:</span> 1001-2000ms / letter (Quick!)</li>
-                    <li><span className="font-bold text-dark-main">Ethereum Mainnet:</span> 2001-12000ms / letter (Standard speed)</li>
-                    <li><span className="font-bold text-dark-main">Bitcoin:</span> &gt; 12000ms / letter (Slow and steady)</li>
+                    <li>
+                      <span className="font-bold text-dark-main">
+                        Etherlink:
+                      </span>{" "}
+                      &lt;=20ms / letter (Lightning fast!)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">
+                        Base/Unichain:
+                      </span>{" "}
+                      200ms / letter (Super fast!)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">Solana:</span>{" "}
+                      201-400ms / letter (Super fast!)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">
+                        Other ETH Layer 2s:
+                      </span>{" "}
+                      401-1000ms / letter (Fast!)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">Polygon:</span>{" "}
+                      1001-2000ms / letter (Quick!)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">
+                        Ethereum Mainnet:
+                      </span>{" "}
+                      2001-12000ms / letter (Standard speed)
+                    </li>
+                    <li>
+                      <span className="font-bold text-dark-main">Bitcoin:</span>{" "}
+                      &gt; 12000ms / letter (Slow and steady)
+                    </li>
                   </ul>
                 </div>
 
