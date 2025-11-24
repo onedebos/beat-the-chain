@@ -661,6 +661,22 @@ export default function Home() {
     initGame();
   }, [gameMode, initGame]);
 
+  // Prevent body scroll when How to Play overlay is open
+  useEffect(() => {
+    if (showHowToPlay) {
+      const originalOverflow = document.body.style.overflow;
+      const originalOverflowY = document.documentElement.style.overflowY;
+      
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflowY = "hidden";
+      
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.documentElement.style.overflowY = originalOverflowY;
+      };
+    }
+  }, [showHowToPlay]);
+
   // Trigger confetti if user has Speed Operator rank or higher
   useEffect(() => {
     if (testFinished && confettiRef.current) {
@@ -2282,7 +2298,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
             onClick={() => setShowHowToPlay(false)}
           >
             <motion.div
@@ -2290,7 +2306,7 @@ export default function Home() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4"
+              className="w-full max-w-5xl rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="pb-5">

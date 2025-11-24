@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ComponentProps } from "react";
+import { useState, useEffect, ComponentProps } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Root as ResizableRoot, Content as ResizableContent } from "./ResizablePanel";
 import useMeasure from "react-use-measure";
@@ -132,23 +132,40 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
     }
   };
 
+  // Prevent body scroll when overlay is mounted
+  useEffect(() => {
+    // Save the original overflow style
+    const originalOverflow = document.body.style.overflow;
+    const originalOverflowY = document.documentElement.style.overflowY;
+    
+    // Disable scrolling on body and html
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflowY = "hidden";
+    
+    // Cleanup: restore original overflow when component unmounts
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.documentElement.style.overflowY = originalOverflowY;
+    };
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
     >
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-5xl rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4"
+        className="w-full max-w-5xl rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4 overflow-hidden max-h-[90vh]"
       >
         {/* Fixed height container for seamless transitions */}
-        <div className="relative h-[600px] overflow-hidden">
+        <div className="relative h-[600px] overflow-hidden max-h-full">
           <ResizableRoot value={step.toString()}>
             <ResizableContent value="1">
               <div className="pb-5">
