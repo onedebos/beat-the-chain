@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
                                   href={`https://x.com/${leader.player_name}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-dark-main hover:text-dark-highlight hover:underline transition-colors"
+                                  className="text-dark-main hover:text-dark-highlight transition-colors"
                                 >
                                   {leader.player_name}
                                 </a>
