@@ -9,6 +9,7 @@ export type GameResult = {
   time: number; // in seconds
   ms_per_letter: number;
   game_mode: number; // 15, 30, or 60 words
+  isTwitterUser?: boolean; // true if signed in with Twitter, false if name-based
   created_at?: string;
 };
 
@@ -23,6 +24,7 @@ export type LeaderboardEntry = {
   time: number;
   ms_per_letter: number;
   game_mode: number;
+  isTwitterUser?: boolean; // true if signed in with Twitter, false if name-based
   created_at: string;
 };
 

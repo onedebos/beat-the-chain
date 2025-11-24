@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
           rank: body.rank,
           time: body.time,
           ms_per_letter: body.ms_per_letter,
+          isTwitterUser: body.isTwitterUser ?? false,
         })
         .eq("id", existingRecord.id)
         .select();
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
             time: body.time,
             ms_per_letter: body.ms_per_letter,
             game_mode: body.game_mode,
+            isTwitterUser: body.isTwitterUser ?? false,
           },
         ])
         .select();

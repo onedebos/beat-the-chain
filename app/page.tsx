@@ -608,6 +608,7 @@ export default function Home() {
       time: parseFloat(durationSec.toFixed(2)),
       ms_per_letter: parseFloat(msPerLetter.toFixed(0)),
       game_mode: gameMode,
+      isTwitterUser: isTwitterAuth,
     })
       .then((result) => {
       // Score saved (or not if not a new best)
@@ -1700,8 +1701,8 @@ export default function Home() {
               ))}
             </div>
           </div>
-          {!showOverlay && !testFinished && playerName && playerName !== "you" && (
-            <div className="text-sm font-mono text-dark-dim hidden group-[.test-finished]:!hidden">
+          {!showOverlay && playerName && playerName !== "you" && (
+            <div className="text-sm font-mono text-dark-dim group-[.test-finished]:hidden">
               Hi, @{playerName}
             </div>
           )}
