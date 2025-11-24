@@ -72,7 +72,7 @@ export default function LeaderboardPage() {
   return (
     <div className="flex h-screen flex-col bg-dark-bg text-dark-main font-sans overflow-y-auto">
       <header className="p-6">
-        <nav className="flex items-center justify-between text-xl">
+        <nav className="flex items-center text-xl">
           <div className="flex items-center space-x-3">
             <Link href="/" className="flex items-center space-x-2 text-dark-highlight">
               <i className="fa fa-keyboard-o h-6 w-6" />
@@ -80,13 +80,17 @@ export default function LeaderboardPage() {
             </Link>
             <span className="text-dark-dim text-sm">/ leaderboard</span>
           </div>
+        </nav>
+        <div className="mt-2 flex items-center space-x-3">
+          <div className="h-6 w-6" />
           <Link
             href="/"
-            className="text-sm text-dark-dim hover:text-dark-main font-mono lowercase tracking-wider"
+            className="flex items-center space-x-2 text-sm text-dark-dim hover:text-dark-main font-mono lowercase tracking-wider"
           >
-            back to game
+            <i className="fa fa-arrow-left h-4 w-4" />
+            <span>back to game</span>
           </Link>
-        </nav>
+        </div>
       </header>
 
       <main className="flex flex-1 flex-col items-center px-6 pb-10">
