@@ -14,13 +14,7 @@ import { Confetti, type ConfettiRef } from "../components/Confetti";
 import Footer from "../components/Footer";
 import WelcomeToProofOfSpeed from "../components/WelcomeToProofOfSpeed";
 import { supabase } from "../lib/supabase";
-
-
-
-// --- GAME CONSTANTS ---
-const SUB_BLOCK_SPEED_MS = 20;
-const GAME_MODES = [15, 30, 60] as const; // Word counts
-type GameMode = typeof GAME_MODES[number];
+import { GAME_MODES, SUB_BLOCK_SPEED_MS, type GameMode } from "../lib/constants";
 // Removed accuracy threshold - all players get ranks based on speed
 
 // Rank descriptions
@@ -1075,7 +1069,7 @@ export default function Home() {
             });
       } else {
           // No stored name - show overlay
-          setShowOverlay(true);
+        setShowOverlay(true);
         }
       } catch (error) {
         // Fallback: show overlay if something goes wrong
@@ -1457,7 +1451,7 @@ https://proofofspeed.vercel.app/`;
                             // Loading state with rectangular loaders
                             <div className="space-y-3">
                               {/* Scores loading placeholders */}
-                              {[15, 30, 60].map((mode) => (
+                              {[15, 30, 45].map((mode) => (
                                 <div
                                   key={mode}
                                   className="flex items-center justify-between"
@@ -1701,7 +1695,7 @@ https://proofofspeed.vercel.app/`;
               ))}
             </div>
           </div>
-          {!showOverlay && playerName && playerName !== "you" && gameMode !== 60 && (
+          {!showOverlay && playerName && playerName !== "you" && gameMode !== 45 && (
             <div className="text-sm font-mono text-dark-dim group-[.test-finished]:hidden">
               Hi, @{playerName}
             </div>
@@ -1709,7 +1703,7 @@ https://proofofspeed.vercel.app/`;
         </div>
 
         <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
-          {gameMode !== 60 && (
+          {gameMode !== 45 && (
           <button
             id="language-btn"
               className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors group-[.test-finished]:hidden ${
@@ -1733,8 +1727,8 @@ https://proofofspeed.vercel.app/`;
               className="relative max-w-5xl mx-auto font-mono"
               style={{
                 paddingBottom:
-                  gameMode === 60 ? "4rem" : gameMode === 30 ? "3rem" : "2rem",
-                marginTop: gameMode === 60 ? "30px" : undefined,
+                  gameMode === 45 ? "4rem" : gameMode === 30 ? "3rem" : "2rem",
+                marginTop: gameMode === 45 ? "30px" : undefined,
               }}
             >
               <div

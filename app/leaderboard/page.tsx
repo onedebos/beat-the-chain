@@ -6,9 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getLeaderboard } from "../../lib/scores";
 import type { LeaderboardEntry } from "../../lib/types";
 import Footer from "../../components/Footer";
-
-const GAME_MODES = [15, 30, 60] as const;
-type GameMode = typeof GAME_MODES[number];
+import { GAME_MODES, type GameMode } from "../../lib/constants";
 
 const ITEMS_PER_PAGE = 20;
 
