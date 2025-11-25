@@ -1,7 +1,7 @@
 "use client"; // This is CRITICAL for React Hooks to work in the App Router
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { AnimatePresence, motion, Variants, HTMLMotionProps } from "framer-motion";
+import { AnimatePresence, motion, Variants, HTMLMotionProps, animate, useMotionValue, useTransform } from "framer-motion";
 import Link from "next/link";
 import html2canvas from "html2canvas";
 import dictionary from "../lib/dictionary";
@@ -323,68 +323,51 @@ const WavyTextComponent = ({
   );
 };
 
-// Pacer Squares Component
-interface PacerSquaresProps {
+// Pacer Timer Component - counts down from totalLetters * 200ms to 0
+interface PacerTimerProps {
   totalLetters: number;
   testActive: boolean;
   speedMs: number;
-  gameMode?: number;
 }
 
-const PacerSquares = ({ totalLetters, testActive, speedMs, gameMode }: PacerSquaresProps) => {
-  const [visibleSquares, setVisibleSquares] = useState<number[]>([]);
+const PacerTimer = ({ totalLetters, testActive, speedMs }: PacerTimerProps) => {
+  // Total time in seconds
+  const totalTimeMs = totalLetters * speedMs;
+  const totalTimeSec = totalTimeMs / 1000;
+  
+  // Motion value for countdown
+  const count = useMotionValue(totalTimeSec);
+  const displayValue = useTransform(count, (value) => Math.max(0, value).toFixed(1));
   
   useEffect(() => {
     if (!testActive) {
-      setVisibleSquares([]);
+      // Reset to initial value when not active
+      count.set(totalTimeSec);
       return;
     }
     
-    // Reset and start showing squares one by one
-    setVisibleSquares([]);
+    // Start countdown animation from totalTimeSec to 0
+    const controls = animate(count, 0, {
+      duration: totalTimeSec,
+      ease: "linear",
+    });
     
-    const timeouts: NodeJS.Timeout[] = [];
-    for (let i = 0; i < totalLetters; i++) {
-      const timeout = setTimeout(() => {
-        setVisibleSquares(prev => [...prev, i]);
-      }, i * speedMs);
-      timeouts.push(timeout);
-    }
-    
-    return () => {
-      timeouts.forEach(timeout => clearTimeout(timeout));
-    };
-  }, [testActive, totalLetters, speedMs]);
+    return () => controls.stop();
+  }, [testActive, totalTimeSec, count]);
   
-  // Adjust positioning and gap based on game mode
-  const bottomOffset = gameMode === 60 ? '-28px' : gameMode === 30 ? '-24px' : '-20px';
-  const gapSize = gameMode === 60 ? '0.0625rem' : gameMode === 30 ? '0.125rem' : '0.25rem'; // Smaller gap for more words
+  if (!testActive) {
+    return null;
+  }
   
   return (
-    <div className="absolute left-0 right-0 flex flex-wrap justify-start items-center z-0" style={{ bottom: bottomOffset, gap: gapSize }}>
-      <AnimatePresence initial={false}>
-        {visibleSquares.map((index) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1,
-              backgroundColor: "#38ff9c"
-            }}
-            exit={{ opacity: 0, scale: 0 }}
-            transition={{
-              opacity: { duration: 0.4 },
-              scale: { type: "spring", duration: 0.4, bounce: 0.5 }
-            }}
-            style={{
-              width: gameMode === 60 ? 12 : gameMode === 30 ? 16 : 20,
-              height: gameMode === 60 ? 12 : gameMode === 30 ? 16 : 20,
-              opacity: 0.5,
-            }}
-          />
-        ))}
-      </AnimatePresence>
+    <div className="absolute bottom-[-50px] left-1/2 transform -translate-x-1/2 z-0 text-center w-full">
+      <motion.h1 
+        className="text-dark-highlight font-mono mb-0"
+        style={{ fontVariantNumeric: 'tabular-nums', fontSize: '2.5rem', fontWeight: 'bold' }}
+      >
+        <motion.span>{displayValue}</motion.span>
+        <span className="ml-2" style={{ fontSize: '1.25rem' }}>s</span>
+      </motion.h1>
     </div>
   );
 };
@@ -403,19 +386,10 @@ export default function Home() {
   // Will be updated in useEffect after client-side hydration
   const [playerName, setPlayerName] = useState("you");
   
-  // Initialize showOverlay based on OAuth callback detection and localStorage
-  const getInitialShowOverlay = () => {
-    if (typeof window === "undefined") return true; // SSR default
-    // If OAuth callback detected, hide overlay immediately to prevent flash
-    const hasOAuthCallback = window.location.hash.includes("access_token") || 
-                             window.location.hash.includes("refresh_token");
-    if (hasOAuthCallback) return false;
-    // Otherwise check localStorage for existing player name
-    const storedName = localStorage.getItem("player_name");
-    return !(storedName && storedName !== "you");
-  };
-  
-  const [showOverlay, setShowOverlay] = useState(getInitialShowOverlay());
+  // Start with true on both server and client to avoid hydration mismatch
+  // Will be updated in useEffect after mount
+  const [showOverlay, setShowOverlay] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -1106,6 +1080,9 @@ export default function Home() {
       } catch (error) {
         // Fallback: show overlay if something goes wrong
         setShowOverlay(true);
+      } finally {
+        // Mark as mounted after initialization
+        setMounted(true);
       }
     };
 
@@ -1348,7 +1325,7 @@ https://proofofspeed.vercel.app/`;
       
       {/* NEW: Render the overlay with AnimatePresence */}
       <AnimatePresence>
-        {showOverlay && (
+        {mounted && showOverlay && (
           <OnboardingOverlay
             onComplete={handleOnboardingComplete}
             onSignInWithTwitter={handleSignInWithTwitter}
@@ -1643,7 +1620,7 @@ https://proofofspeed.vercel.app/`;
           </nav>
         </header>
 
-        <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4 group-[.test-finished]:-mt-5">
+        <div className="relative z-10 flex flex-col items-center px-6 py-4 space-y-4 -mt-5 group-[.test-finished]:-mt-5">
           <div className="text-center">
             <span className="font-nfs text-[2.8125rem] text-dark-highlight">
               Proof of Speed
@@ -1724,7 +1701,7 @@ https://proofofspeed.vercel.app/`;
               ))}
             </div>
           </div>
-          {!showOverlay && playerName && playerName !== "you" && (
+          {!showOverlay && playerName && playerName !== "you" && gameMode !== 60 && (
             <div className="text-sm font-mono text-dark-dim group-[.test-finished]:hidden">
               Hi, @{playerName}
             </div>
@@ -1732,17 +1709,19 @@ https://proofofspeed.vercel.app/`;
         </div>
 
         <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
+          {gameMode !== 60 && (
           <button
             id="language-btn"
               className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors group-[.test-finished]:hidden ${
-              testStarted
-                ? "text-dark-dim hover:text-dark-highlight"
-                : "text-dark-highlight"
+                testStarted
+                  ? "text-dark-dim hover:text-dark-highlight"
+                  : "text-dark-highlight"
               }`}
           >
               <i className="fa-solid fa-globe h-4 w-4" />
               <span>Click or press the first letter to begin</span>
           </button>
+          )}
           
           <div
             id="test-area"
@@ -1755,6 +1734,7 @@ https://proofofspeed.vercel.app/`;
               style={{
                 paddingBottom:
                   gameMode === 60 ? "4rem" : gameMode === 30 ? "3rem" : "2rem",
+                marginTop: gameMode === 60 ? "30px" : undefined,
               }}
             >
               <div
@@ -1782,18 +1762,12 @@ https://proofofspeed.vercel.app/`;
                 }}
               />
               
-                  <PacerSquares 
+                  <PacerTimer 
                     key={pacerResetKey}
                     totalLetters={totalLetters}
                     testActive={testStarted}
-                    speedMs={SUB_BLOCK_SPEED_MS}
-                gameMode={gameMode}
+                    speedMs={200}
                   />
-                  {testStarted && (
-                    <div className="absolute bottom-[-60px] left-0 text-sm text-dark-dim font-mono mt-4">
-                  Creating Instant confirmations in &lt;20ms on Etherlink.......
-                    </div>
-              )}
             </div>
           </div>
 
