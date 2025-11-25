@@ -4,7 +4,7 @@ import { useState, useEffect, ComponentProps } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Root as ResizableRoot, Content as ResizableContent } from "./ResizablePanel";
 import useMeasure from "react-use-measure";
-import HowToPlayContent from "./HowToPlayContent";
+import WelcomeToProofOfSpeed from "./WelcomeToProofOfSpeed";
 
 type OnboardingOverlayProps = {
   onComplete: (name: string) => void;
@@ -170,11 +170,7 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
           <ResizableRoot value={step.toString()}>
             <ResizableContent value="1">
               <div className="pb-5">
-              <h1 className="text-4xl font-bold text-dark-highlight font-nfs text-center">
-                WELCOME TO PROOF OF SPEED 🤯
-              </h1>
-
-              <HowToPlayContent />
+              <WelcomeToProofOfSpeed />
 
               <div className="mt-4 mb-4 flex justify-between">
                 <button

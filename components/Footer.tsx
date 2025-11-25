@@ -37,15 +37,25 @@ export default function Footer() {
               <i className="fa-brands fa-twitter h-4 w-4" />
               <span>twitter</span>
             </a>
-            <a href="https://tezos.com/privacy-notice/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono">
+            <a
+              href="https://tezos.com/privacy-notice/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center space-x-1 text-dark-dim hover:text-dark-highlight transition-colors font-mono"
+            >
               <i className="fa-solid fa-lock h-4 w-4" />
               <span>privacy</span>
             </a>
           </div>
           <div className="flex space-x-2 text-dark-dim font-mono">
             <span>etherlink</span>
-            <a href="https://medium.com/@etherlink/announcing-ebisu-a-5th-upgrade-proposal-for-etherlink-mainnet-4dfdd1c8819e" target="_blank" rel="noopener noreferrer" className="hover:text-dark-highlight transition-colors">
-              <span>v:5.0.0 ebisu</span>
+            <a
+              href="https://medium.com/@etherlink/announcing-farfadet-a-6th-upgrade-proposal-for-etherlink-mainnet-6bc59793962d"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-dark-highlight transition-colors"
+            >
+              <span>v:6.0.0 farfadet</span>
             </a>
           </div>
         </div>

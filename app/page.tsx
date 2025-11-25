@@ -12,7 +12,7 @@ import OnboardingOverlay from "../components/OnboardingOverlay";
 import CountUp from "../components/CountUp";
 import { Confetti, type ConfettiRef } from "../components/Confetti";
 import Footer from "../components/Footer";
-import HowToPlayContent from "../components/HowToPlayContent";
+import WelcomeToProofOfSpeed from "../components/WelcomeToProofOfSpeed";
 import { supabase } from "../lib/supabase";
 
 
@@ -118,7 +118,7 @@ const BLOCKCHAIN_THRESHOLDS = [
   { ms: 1000, position: 50 },     // ETH L2s
   { ms: 400, position: 66.67 },       // Solana
   { ms: 200, position: 83.33 },     // Base
-  { ms: 20, position: 100 },     // Super Confirmations
+  { ms: 20, position: 100 },     // Instant confirmations
 ];
 
 const BG_COLOR = '#323437';
@@ -180,7 +180,7 @@ const CHAINS = [
   { name: 'ETH L2s', ms: 1000, color: getBestContrastColor('eth', '#87ceeb'), icon: 'eth', displayTime: null, gradientColor: '#627EEA' },
   { name: 'Solana', ms: 400, color: getBestContrastColor('sol', '#DC1FFF'), icon: 'sol', displayTime: null, gradientColor: '#66F9A1' },
   { name: 'Base', ms: 200, color: getBestContrastColor('base', '#0052FF'), icon: 'base', displayTime: null, gradientColor: '#0052FF' },
-  { name: 'Super Conf.', ms: 20, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' },
+  { name: 'Instant confirmations', ms: 20, color: getBestContrastColor('xtz', '#38FF9C'), icon: 'etherlink', displayTime: null, gradientColor: '#A6E000' },
 ];
 
 const CHAIN_POSITIONS = CHAINS.map((chain, index) => ({
@@ -563,9 +563,9 @@ export default function Home() {
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
     // "You were as fast as" is based purely on speed (msPerLetter) - not accuracy-adjusted
-    // Categories: Super Conf. (20ms), Base (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
+    // Categories: Instant confirmations (20ms), Base (200ms), Solana (400ms), ETH L2s (1000ms), Polygon (2000ms), Ethereum Mainnet (12000ms), Bitcoin (600000ms)
     let speedComparison = "Bitcoin";
-    if (msPerLetter <= 20) speedComparison = "Super Conf.";
+    if (msPerLetter <= 20) speedComparison = "Instant confirmations";
     else if (msPerLetter <= 200) speedComparison = "Base";
     else if (msPerLetter <= 400) speedComparison = "Solana";
     else if (msPerLetter <= 1000) speedComparison = "ETH L2s";
@@ -1785,7 +1785,7 @@ export default function Home() {
                   />
                   {testStarted && (
                     <div className="absolute bottom-[-60px] left-0 text-sm text-dark-dim font-mono mt-4">
-                  Creating Super Confirmations in &lt;20ms on Etherlink.......
+                  Creating Instant confirmations in &lt;20ms on Etherlink.......
                     </div>
               )}
             </div>
@@ -1981,7 +1981,7 @@ export default function Home() {
                   const msPerLetter = parseFloat(results.msPerLetter) || 0;
                   const isFasterThanSubblocks =
                     msPerLetter < 20 &&
-                    results.speedComparison === "Super Conf.";
+                    results.speedComparison === "Instant confirmations";
                   
                   return (
                     <div className="flex items-start justify-center gap-8 flex-wrap">
@@ -2104,8 +2104,8 @@ export default function Home() {
                                 minWidth: "100px",
                               }}
                             >
-                              {blockchain.name === "Super Conf." ? (
-                                // Special layout for Super Conf. - icon inline with text, time below
+                              {blockchain.name === "Instant confirmations" ? (
+                                // Special layout for Instant confirmations - icon inline with text, time below
                                 <div className="flex items-center gap-1">
                                   {/* Text Content */}
                                   <div className="flex flex-col">
@@ -2311,11 +2311,7 @@ export default function Home() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="pb-5">
-                <h1 className="text-4xl font-bold text-dark-highlight font-nfs text-center">
-                  WELCOME TO PROOF OF SPEED
-                </h1>
-
-                <HowToPlayContent />
+                <WelcomeToProofOfSpeed />
 
                 <div className="mt-6 flex justify-end">
                   <button
