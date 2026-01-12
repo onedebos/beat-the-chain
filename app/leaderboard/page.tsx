@@ -184,8 +184,8 @@ export default function LeaderboardPage() {
                           </div>
                           <div className="text-xs text-dark-dim">{leader.game_mode} words</div>
                         </div>
-                        <div className="text-right text-dark-main">{leader.score.toFixed(2)}</div>
-                        <div className="text-right text-dark-highlight">{leader.lps.toFixed(2)}</div>
+                        <div className="text-right text-dark-highlight">{leader.score.toFixed(2)}</div>
+                        <div className="text-right text-dark-main">{leader.lps.toFixed(2)}</div>
                         <div className="text-right text-dark-main">{leader.accuracy.toFixed(1)}%</div>
                       </motion.div>
                     ))}
