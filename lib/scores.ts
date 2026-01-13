@@ -125,7 +125,7 @@ function calculateAccuracyWeightedScore(lps: number, accuracy: number): number {
 /**
  * Get leaderboard entries for a specific game mode
  * Sorted by accuracy-weighted score (lps * (accuracy/100)^2)
- * @param gameMode - The game mode (15, 30, or 45 words)
+ * @param gameMode - The game mode (15 or 30 words)
  * @param limit - Number of entries to return (default: 10)
  */
 export async function getLeaderboard(

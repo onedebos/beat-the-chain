@@ -8,7 +8,7 @@ export type GameResult = {
   rank: string;
   time: number; // in seconds
   ms_per_letter: number;
-  game_mode: number; // 15, 30, or 45 words
+  game_mode: number; // 15 or 30 words
   isTwitterUser?: boolean; // true if signed in with Twitter, false if name-based
   created_at?: string;
 };

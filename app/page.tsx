@@ -15,7 +15,6 @@ import Footer from "../components/Footer";
 import WelcomeToProofOfSpeed from "../components/WelcomeToProofOfSpeed";
 import { supabase } from "../lib/supabase";
 import { GAME_MODES, SUB_BLOCK_SPEED_MS, type GameMode } from "../lib/constants";
-// Removed accuracy threshold - all players get ranks based on speed
 
 // Rank descriptions
 const RANK_DESCRIPTIONS: Record<string, string> = {
@@ -1451,7 +1450,7 @@ https://proofofspeed.vercel.app/`;
                             // Loading state with rectangular loaders
                             <div className="space-y-3">
                               {/* Scores loading placeholders */}
-                              {[15, 30, 45].map((mode) => (
+                              {GAME_MODES.map((mode) => (
                                 <div
                                   key={mode}
                                   className="flex items-center justify-between"
@@ -1695,7 +1694,7 @@ https://proofofspeed.vercel.app/`;
               ))}
             </div>
           </div>
-          {!showOverlay && playerName && playerName !== "you" && gameMode !== 45 && (
+          {!showOverlay && playerName && playerName !== "you" && (
             <div className="text-sm font-mono text-dark-dim group-[.test-finished]:hidden">
               Hi, @{playerName}
             </div>
@@ -1703,7 +1702,6 @@ https://proofofspeed.vercel.app/`;
         </div>
 
         <main className="relative z-0 -mt-16 flex flex-grow flex-col items-center justify-center group-[.test-finished]:overflow-y-auto group-[.test-finished]:justify-start group-[.test-finished]:py-8">
-          {gameMode !== 45 && (
           <button
             id="language-btn"
               className={`mb-4 inline-flex items-center gap-2 text-sm font-mono lowercase tracking-wider transition-colors group-[.test-finished]:hidden ${
@@ -1715,7 +1713,6 @@ https://proofofspeed.vercel.app/`;
               <i className="fa-solid fa-globe h-4 w-4" />
               <span>Click or press the first letter to begin</span>
           </button>
-          )}
           
           <div
             id="test-area"
@@ -1727,8 +1724,7 @@ https://proofofspeed.vercel.app/`;
               className="relative max-w-5xl mx-auto font-mono"
               style={{
                 paddingBottom:
-                  gameMode === 45 ? "4rem" : gameMode === 30 ? "3rem" : "2rem",
-                marginTop: gameMode === 45 ? "30px" : undefined,
+                  gameMode === 30 ? "3rem" : "2rem",
               }}
             >
               <div
