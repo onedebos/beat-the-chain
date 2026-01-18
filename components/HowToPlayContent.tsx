@@ -34,15 +34,32 @@ export default function HowToPlayContent() {
             <span className="font-bold text-dark-highlight">Blockchain Speed Ranks</span>
           </div>
         </div>
-        <ul className="list-none space-y-1.5 text-sm text-dark-dim">
-          <li><span className="font-bold text-dark-main">Etherlink:</span> ≤50ms - Teleport mode 🤯 (Instant)</li>
-          <li><span className="font-bold text-dark-main">Base / Unichain:</span> ≤200ms - Lightning ⚡</li>
-          <li><span className="font-bold text-dark-main">Solana:</span> 201-400ms - Rocket 🚀</li>
-          <li><span className="font-bold text-dark-main">Other ETH L2s:</span> 401-1000ms - Fast-ish 🏃</li>
-          <li><span className="font-bold text-dark-main">Polygon:</span> 1.1-2s - Coffee-break speed ☕</li>
-          <li><span className="font-bold text-dark-main">Ethereum Mainnet:</span> 2.1-12s - Give-me-a-sec…⏳</li>
-          <li><span className="font-bold text-dark-main">Bitcoin:</span> &gt;12s - Stop-for-lunch 🐢</li>
-        </ul>
+        <div className="flex text-sm text-dark-dim">
+          <div className="pr-4 border-r border-dark-highlight">
+            <div className="font-bold text-dark-highlight pb-2 mb-2 border-b border-dark-highlight">Blockchain</div>
+            <div className="space-y-1.5">
+              <div className="font-bold text-dark-main">Etherlink</div>
+              <div className="font-bold text-dark-main">Base / Unichain</div>
+              <div className="font-bold text-dark-main">Solana</div>
+              <div className="font-bold text-dark-main">Other ETH L2s</div>
+              <div className="font-bold text-dark-main">Polygon</div>
+              <div className="font-bold text-dark-main">Ethereum Mainnet</div>
+              <div className="font-bold text-dark-main">Bitcoin</div>
+            </div>
+          </div>
+          <div className="pl-4">
+            <div className="font-bold text-dark-highlight pb-2 mb-2 border-b border-dark-highlight">Speed Ranks</div>
+            <div className="space-y-1.5">
+              <div>≤50ms - Teleport mode 🤯 (Instant)</div>
+              <div>≤200ms - Lightning ⚡</div>
+              <div>201-400ms - Rocket 🚀</div>
+              <div>401-1000ms - Fast-ish 🏃</div>
+              <div>1.1-2s - Coffee-break speed ☕</div>
+              <div>2.1-12s - Give-me-a-sec…⏳</div>
+              <div>&gt;12s - Stop-for-lunch 🐢</div>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );

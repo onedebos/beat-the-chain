@@ -10,7 +10,7 @@ const config: Config = {
     extend: {
       // 1. Add custom colors
       colors: {
-        "dark-bg": "#323437",
+        "dark-bg": "#000000",
         "dark-dim": "#646669",
         "dark-main": "#d1d0c5",
         "dark-highlight": "#38ff9c",

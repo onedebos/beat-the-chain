@@ -1947,46 +1947,22 @@ https://proofofspeed.vercel.app/`;
             {/* Bottom Info */}
             <div className="mt-10 pt-6 border-t border-dark-kbd mb-20">
               <div className="text-center mb-6">
-                {(() => {
-                  const msPerLetter = parseFloat(results.msPerLetter) || 0;
-                  const isFasterThanInstantConfirmations =
-                    msPerLetter < 20 &&
-                    results.speedComparison === "Instant confirmations";
-                  
-                  return (
-                    <div className="flex items-start justify-center gap-8 flex-wrap">
-                      <div className="flex flex-col">
-                        <div className="text-lg text-dark-dim mb-2">
-                          {isFasterThanInstantConfirmations
-                            ? "You were faster than"
-                            : "You were as fast as"}
-                        </div>
-                        <div
-                          id="result-speed-comparison"
-                          className="text-3xl font-bold font-nfs text-dark-highlight"
-                        >
-                          {results.speedComparison}
-                        </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="text-lg text-dark-dim mb-2">
-                          Your Rank
-                        </div>
-                        <div
-                          id="result-rank"
-                          className="text-3xl font-bold font-nfs text-dark-highlight mb-2"
-                        >
-                          {getRankName(results.rank)}
-                        </div>
-                        {RANK_DESCRIPTIONS[results.rank] && (
-                          <div className="text-sm text-dark-dim font-mono max-w-md">
-                            {RANK_DESCRIPTIONS[results.rank]}
-                          </div>
-                        )}
-                      </div>
+                <div className="flex flex-col items-center">
+                  <div className="text-lg text-dark-dim mb-2">
+                    Your Rank
+                  </div>
+                  <div
+                    id="result-rank"
+                    className="text-3xl font-bold font-nfs text-dark-highlight mb-2"
+                  >
+                    {getRankName(results.rank)}
+                  </div>
+                  {RANK_DESCRIPTIONS[results.rank] && (
+                    <div className="text-sm text-dark-dim font-mono max-w-md">
+                      {RANK_DESCRIPTIONS[results.rank]}
                     </div>
-                  );
-                })()}
+                  )}
+                </div>
               </div>
               
               {/* Rank Progress Bar */}
