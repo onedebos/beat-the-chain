@@ -107,16 +107,14 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
   const [errorRef, errorBounds] = useMeasure();
 
   const handleNext = () => {
-    if (step < 2) {
-      setStep(step + 1);
-    }
-  };
+    if (step >= 2) return
+    setStep(step + 1)
+  }
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1);
-    }
-  };
+    if (step <= 1) return
+    setStep(step - 1)
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,10 +126,9 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
   };
 
   const handleSignInWithTwitter = () => {
-    if (onSignInWithTwitter) {
-      onSignInWithTwitter();
-    }
-  };
+    if (!onSignInWithTwitter) return
+    onSignInWithTwitter()
+  }
 
   // Prevent body scroll when overlay is mounted
   useEffect(() => {
