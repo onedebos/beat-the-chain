@@ -1144,10 +1144,8 @@ export default function Home() {
 
 I scored ${results.score} on Proof of Speed! ${results.lps} letters per second with ${results.accuracy} accuracy.
 
-Can you beat Etherlink's instant confirmations? 
-
-https://proofofspeed.vercel.app/`;
-      const shareUrl = "https://proofofspeed.vercel.app/";
+Can you beat Etherlink's instant confirmations?`;
+      const shareUrl = "https://proofofspeed.xyz/";
     
     // Capture screenshot of results screen
     let screenshotFile: File | null = null;
