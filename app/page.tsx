@@ -482,6 +482,10 @@ export default function Home() {
 
   const startTest = useCallback(() => {
     if (stateRef.current.testActive) return;
+    // Blur any focused buttons to prevent spacebar from triggering them
+    if (document.activeElement instanceof HTMLButtonElement) {
+      document.activeElement.blur();
+    }
     stateRef.current.testActive = true;
     stateRef.current.startTime = performance.now();
     setTestStarted(true);
@@ -838,6 +842,11 @@ export default function Home() {
       }
 
       if (!stateRef.current.testActive) return;
+
+      // Prevent spacebar from triggering button clicks when game is active
+      if (event.key === " " && stateRef.current.testActive) {
+        event.preventDefault();
+      }
 
       if (event.key === "Backspace") {
         event.preventDefault();
