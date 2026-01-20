@@ -180,17 +180,15 @@ export async function getLeaderboard(
       return { data: [] };
     }
 
-    // Calculate accuracy-weighted score for each entry and sort
-    const entriesWithWeightedScore = data.map((entry: LeaderboardEntry) => ({
-      ...entry,
-      weightedScore: calculateAccuracyWeightedScore(entry.lps, entry.accuracy),
-    }));
-
-    // Sort by weighted score (descending), then by accuracy (descending) as tiebreaker, then by lps
-    entriesWithWeightedScore.sort((a: LeaderboardEntry & { weightedScore: number }, b: LeaderboardEntry & { weightedScore: number }) => {
-      // Primary sort: weighted score (higher is better)
-      if (Math.abs(b.weightedScore - a.weightedScore) > 0.0001) {
-        return b.weightedScore - a.weightedScore;
+    // Sort by stored score (which includes correction bonus and game mode normalization for new entries)
+    // Note: Old entries were calculated with the old formula, but will still be sorted correctly
+    // Primary sort: stored score (higher is better)
+    // Secondary sort: accuracy (higher is better) as tiebreaker
+    // Tertiary sort: lps (higher is better) as final tiebreaker
+    const sortedEntries = [...data].sort((a: LeaderboardEntry, b: LeaderboardEntry) => {
+      // Primary sort: score (higher is better)
+      if (Math.abs(b.score - a.score) > 0.0001) {
+        return b.score - a.score;
       }
       // Secondary sort: accuracy (higher is better)
       if (Math.abs(b.accuracy - a.accuracy) > 0.01) {
@@ -200,8 +198,8 @@ export async function getLeaderboard(
       return b.lps - a.lps;
     });
 
-    // Return top entries (remove the weightedScore property before returning)
-    const topEntries = entriesWithWeightedScore.slice(0, limit).map(({ weightedScore, ...entry }: LeaderboardEntry & { weightedScore: number }) => entry);
+    // Return top entries
+    const topEntries = sortedEntries.slice(0, limit);
 
     return { data: topEntries as LeaderboardEntry[] };
   } catch (err) {
@@ -226,7 +224,7 @@ export function getUserProfile(playerName: string): {
     return { name: playerName, bestScore: null, bestGameMode: null, hasProfile: false };
   }
 
-  const gameModes = [15, 30, 60];
+  const gameModes = [15, 30];
   let bestScore: number | null = null;
   let bestGameMode: number | null = null;
 
@@ -320,7 +318,7 @@ export async function getAllUserScores(
   playerName: string
 ): Promise<{ data: LeaderboardEntry[]; error?: string }> {
   try {
-    const gameModes = [15, 30, 60];
+    const gameModes = [15, 30];
     const allScores: LeaderboardEntry[] = [];
 
     // Fetch best score for each game mode
@@ -336,7 +334,7 @@ export async function getAllUserScores(
       }
     }
 
-    // Sort by game mode (15, 30, 60)
+    // Sort by game mode (15, 30)
     allScores.sort((a, b) => a.game_mode - b.game_mode);
 
     return { data: allScores };
@@ -354,7 +352,7 @@ export async function getAllUserScores(
 export function clearPlayerData(playerName: string): void {
   if (typeof window === "undefined") return;
   try {
-    const gameModes = [15, 30, 60];
+    const gameModes = [15, 30];
     
     // Clear all best scores and record IDs for all game modes
     gameModes.forEach((mode) => {
@@ -441,7 +439,7 @@ export function clearStoredTwitterAvatar(playerName: string): void {
  */
 export async function restoreUserDataFromDB(playerName: string): Promise<boolean> {
   try {
-    const gameModes = [15, 30, 60];
+    const gameModes = [15, 30];
     let hasData = false;
 
     // Fetch best score for each game mode

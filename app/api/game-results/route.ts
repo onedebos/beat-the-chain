@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate game mode (must be 15, 30, or 60)
-    if (![15, 30, 60].includes(body.game_mode)) {
+    // Validate game mode (must be 15 or 30)
+    if (![15, 30].includes(body.game_mode)) {
       return NextResponse.json(
         { success: false, error: "Invalid game mode" },
         { status: 400 }
@@ -60,11 +60,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate consistency: score should approximately equal lps * (accuracy/100)^2
-    // Allow small floating point differences (within 0.1)
-    const expectedScore = body.lps * Math.pow(body.accuracy / 100, 2);
-    const scoreDifference = Math.abs(body.score - expectedScore);
-    if (scoreDifference > 0.1) {
+    // Validate consistency: score should be reasonable based on lps and accuracy
+    // Formula includes:
+    // - Base score: lps * (accuracy/100)^2
+    // - Correction bonus: up to 15%
+    // - Game mode multiplier: 22% for 30-word mode
+    // - No scaling factor (score directly reflects weighted LPS)
+    // Maximum possible: baseScore * 1.15 * 1.22 ≈ baseScore * 1.40
+    // Calculate base score: lps * (accuracy/100)^2
+    const baseScore = body.lps * Math.pow(body.accuracy / 100, 2);
+    // Allow up to 1.5x the base score to account for correction bonus and game mode multiplier
+    const maxAllowedScore = baseScore * 1.5;
+    const minAllowedScore = baseScore * 0.9; // Allow rounding differences
+    
+    if (body.score > maxAllowedScore || body.score < minAllowedScore) {
       return NextResponse.json(
         { success: false, error: "Score calculation mismatch" },
         { status: 400 }

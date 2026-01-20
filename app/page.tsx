@@ -249,6 +249,8 @@ type GameState = {
   errorCount: number;
   totalLetters: number;
   testFinished: boolean;
+  errorPositions: Set<number>; // Track positions where errors occurred
+  correctedErrors: Set<number>; // Track positions where errors were corrected
 };
 
 // Wavy Text Component
@@ -415,6 +417,8 @@ export default function Home() {
     errorCount: 0,
     totalLetters: 0,
     testFinished: false,
+    errorPositions: new Set(),
+    correctedErrors: new Set(),
   });
 
   const tabPressedRef = useRef(false);
@@ -491,6 +495,8 @@ export default function Home() {
     stateRef.current.startTime = 0;
     stateRef.current.errorCount = 0;
     stateRef.current.currentIndex = 0;
+    stateRef.current.errorPositions.clear();
+    stateRef.current.correctedErrors.clear();
     setResults({ ...DEFAULT_RESULTS });
     setTestStarted(false);
     setTestFinished(false);
@@ -520,12 +526,49 @@ export default function Home() {
     const durationMs = endTime - stateRef.current.startTime;
     const durationSec = Math.max(durationMs / 1000, 0.001);
     const lettersPerSecond = lettersCount / durationSec;
+    
+    // Calculate corrected vs uncorrected errors
+    const totalErrors = stateRef.current.errorPositions.size;
+    const correctedErrors = stateRef.current.correctedErrors.size;
+    const uncorrectedErrors = totalErrors - correctedErrors;
+    
+    // Accuracy based on uncorrected errors only (errors that remain at the end)
     const accuracy =
-      ((lettersCount - stateRef.current.errorCount) / lettersCount) * 100;
+      ((lettersCount - uncorrectedErrors) / lettersCount) * 100;
+    
+    // Correction bonus: reward players who correct their mistakes
+    // Bonus scales with correction rate, but also considers total error rate
+    // Players with fewer errors who correct them get more bonus
+    // Formula: correctionRate * (1 - errorRate) * 0.15
+    // This gives up to 15% bonus, but only if you have low error rate AND correct them
+    const correctionRate = totalErrors > 0 ? correctedErrors / totalErrors : 0;
+    const errorRate = lettersCount > 0 ? totalErrors / lettersCount : 0;
+    const correctionBonus = correctionRate * (1 - Math.min(errorRate * 10, 0.5)) * 0.15; // Up to 15% bonus, scales down with high error rates
+    
     // Score factors in accuracy more heavily by squaring the accuracy percentage
     // This ensures accuracy is weighted more than just a simple multiplication
     const accuracyDecimal = accuracy / 100;
-    const finalScore = lettersPerSecond * (accuracyDecimal * accuracyDecimal);
+    let baseScore = lettersPerSecond * (accuracyDecimal * accuracyDecimal);
+    
+    // Apply correction bonus
+    const scoreWithCorrection = baseScore * (1 + correctionBonus);
+    
+    // Game mode normalization: 30-word mode is harder, so apply a multiplier
+    // Calibrated based on best player data:
+    // - 15-word: 14.07 LPS, 100% acc → Base score 14.07
+    // - 30-word: 11.79 LPS, 98.8% acc → Base score 11.50
+    // To normalize: 11.50 × multiplier should ≈ 14.07
+    // Multiplier = 14.07 / 11.50 = 1.223 (22.3% bonus)
+    // Using 1.22x for cleaner number
+    const gameModeMultiplier = gameMode === 30 ? 1.22 : 1.0;
+    const normalizedScore = scoreWithCorrection * gameModeMultiplier;
+    
+    // Final score is the normalized score (no scaling factor)
+    // Best player data:
+    // - 15-word: 14.07 (100% acc) → reaches Grandmaster (≥14)
+    // - 30-word: 11.50 × 1.22 = 14.03 (98.8% acc, normalized) → reaches Grandmaster (≥14)
+    // Score directly reflects weighted LPS, making it more intuitive
+    const finalScore = normalizedScore;
     const msPerLetter = durationMs / lettersCount;
     const comparisonMs = msPerLetter - SUB_BLOCK_SPEED_MS;
 
@@ -540,16 +583,36 @@ export default function Home() {
     else if (msPerLetter <= 12000) speedComparison = "Ethereum Mainnet";
     else speedComparison = "Bitcoin";
     
-    // Rank is based on score (6 levels)
-    // Score already factors in both speed and accuracy: finalScore = lettersPerSecond * (accuracyDecimal ^ 2)
-    // Determine rank based on score thresholds
+    // Rank is based on score (6 levels) with minimum accuracy threshold
+    // Calibrated using best player performance as benchmark:
+    // - Best player: 14.07 score (15-word, 100% acc) and 14.03 score (30-word, 98.8% acc after normalization)
+    // - Grandmaster threshold set at 14.0 to make best player achieve it
+    // - Other thresholds set proportionally below
     let rank = "Typing Rookie 🥉";
-    if (finalScore >= 20) rank = "Grandmaster of Speed 👑";
-    else if (finalScore >= 15) rank = "Turbo Typelord 💎";
-    else if (finalScore >= 10) rank = "Chain Slayer ⚔️";
-    else if (finalScore >= 5) rank = "Speed Operator 🥇";
-    else if (finalScore >= 2) rank = "Latency Warrior 🥈";
-    else rank = "Typing Rookie 🥉";
+    
+    // Minimum accuracy thresholds for ranks (prevents spam-typing)
+    // Based on best player achieving 98.8% in 30-word mode
+    const MIN_ACCURACY_GRANDMASTER = 98;
+    const MIN_ACCURACY_TURBO = 95;
+    const MIN_ACCURACY_CHAIN = 90;
+    const MIN_ACCURACY_SPEED = 85;
+    const MIN_ACCURACY_LATENCY = 80;
+    
+    // Rank thresholds matching HowToPlayContent.tsx display
+    // Master: ≥14, Diamond: ≥11, Platinum: ≥7, Gold: ≥4, Silver: ≥1, Bronze: <1
+    if (finalScore >= 14 && accuracy >= MIN_ACCURACY_GRANDMASTER) {
+      rank = "Grandmaster of Speed 👑";
+    } else if (finalScore >= 11 && accuracy >= MIN_ACCURACY_TURBO) {
+      rank = "Turbo Typelord 💎";
+    } else if (finalScore >= 7 && accuracy >= MIN_ACCURACY_CHAIN) {
+      rank = "Chain Slayer ⚔️";
+    } else if (finalScore >= 4 && accuracy >= MIN_ACCURACY_SPEED) {
+      rank = "Speed Operator 🥇";
+    } else if (finalScore >= 1 && accuracy >= MIN_ACCURACY_LATENCY) {
+      rank = "Latency Warrior 🥈";
+    } else {
+      rank = "Typing Rookie 🥉";
+    }
 
     const resultsData = {
       score: finalScore.toFixed(2),
@@ -810,6 +873,10 @@ export default function Home() {
           const letter =
             stateRef.current.letterElements[stateRef.current.currentIndex];
           if (letter) {
+            // If this position had an error, mark it as corrected
+            if (stateRef.current.errorPositions.has(stateRef.current.currentIndex)) {
+              stateRef.current.correctedErrors.add(stateRef.current.currentIndex);
+            }
             letter.classList.remove(
               "text-dark-main",
               "text-dark-error",
@@ -837,10 +904,16 @@ export default function Home() {
         if (event.key === currentLetter.textContent) {
           currentLetter.classList.add("text-dark-main");
           currentLetter.classList.remove("text-dark-error", "underline");
+          // If this position had an error and is now correct, mark as corrected
+          if (stateRef.current.errorPositions.has(stateRef.current.currentIndex)) {
+            stateRef.current.correctedErrors.add(stateRef.current.currentIndex);
+          }
         } else {
           currentLetter.classList.add("text-dark-error", "underline");
           currentLetter.classList.remove("text-dark-main");
           stateRef.current.errorCount += 1;
+          // Track this error position
+          stateRef.current.errorPositions.add(stateRef.current.currentIndex);
         }
 
         stateRef.current.currentIndex += 1;
