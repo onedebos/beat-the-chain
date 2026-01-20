@@ -119,8 +119,9 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    // Minimum 4 characters
-    if (trimmedName.length >= 4) {
+    // Validate player name (3-50 characters, alphanumeric, dots, hyphens, underscores only)
+    const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
+    if (nameRegex.test(trimmedName)) {
       onComplete(trimmedName);
     }
   };
@@ -213,10 +214,10 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                       autoFocus
                       className="w-full rounded-md border-2 border-dark-dim/50 bg-dark-bg p-4 text-2xl font-bold text-dark-main font-mono placeholder:font-normal focus:outline-none focus:ring-0 transition-colors"
                       style={{ 
-                        borderColor: name.trim().length >= 4 ? "#39ff9c" : undefined
+                        borderColor: /^[a-zA-Z0-9._-]{3,50}$/.test(name.trim()) ? "#39ff9c" : undefined
                       }}
                       onFocus={(e) => e.target.style.borderColor = "#39ff9c"}
-                      onBlur={(e) => e.target.style.borderColor = name.trim().length >= 4 ? "#39ff9c" : ""}
+                      onBlur={(e) => e.target.style.borderColor = /^[a-zA-Z0-9._-]{3,50}$/.test(name.trim()) ? "#39ff9c" : ""}
                     />
                   </div>
                   
@@ -229,7 +230,8 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                       <AnimatePresence>
                         {(() => {
                           const trimmed = name.trim();
-                          const hasError = trimmed && trimmed.length < 4;
+                          const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
+                          const hasError = trimmed && !nameRegex.test(trimmed);
                           
                           return hasError ? (
                             <motion.p
@@ -240,7 +242,7 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                               className="text-center text-dark-dim mt-2 text-sm font-mono"
                               style={{ lineHeight: "1.6", paddingBottom: "0.125rem" }}
                             >
-                              Name must be at least 4 characters
+                              Name must be 3-50 characters and only contain letters, numbers, dots, hyphens, or underscores
                             </motion.p>
                           ) : null;
                         })()}
@@ -250,7 +252,7 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
 
                   <button
                     type="submit"
-                    disabled={name.trim().length < 4}
+                    disabled={!/^[a-zA-Z0-9._-]{3,50}$/.test(name.trim())}
                     className="w-full rounded-full border border-dark-dim/30 py-3 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                     style={{ backgroundColor: "#39ff9c" }}
                   >
