@@ -2,7 +2,7 @@
 
 A typing game inspired by [monkeytype](https://monkeytype.com) that gives users a visual representation of Instant confirmations on [Etherlink](https://etherlink.com).
 
-**[🎮 Play the game →](https://beat-the-chain-zeta.vercel.app/)**
+**[🎮 Play the game →](https://proofofspeed.xyz/)**
 
 [Etherlink](https://etherlink.com) is a [Tezos](https://tezos.com) EVM-compatible L2 that brings Ethereum compatibility to the Tezos ecosystem. Learn more about Etherlink's latest upgrade, [Ebisu](https://medium.com/@etherlink/announcing-ebisu-a-5th-upgrade-proposal-for-etherlink-mainnet-4dfdd1c8819e), which introduces Instant confirmations features.
 
