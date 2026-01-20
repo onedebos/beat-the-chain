@@ -588,7 +588,7 @@ export default function Home() {
     // - Best player: 14.07 score (15-word, 100% acc) and 14.03 score (30-word, 98.8% acc after normalization)
     // - Grandmaster threshold set at 14.0 to make best player achieve it
     // - Other thresholds set proportionally below
-    let rank = "Typing Rookie 🥉";
+    let rank = "Bronze: Block Rookie";
     
     // Minimum accuracy thresholds for ranks (prevents spam-typing)
     // Based on best player achieving 98.8% in 30-word mode
@@ -601,17 +601,17 @@ export default function Home() {
     // Rank thresholds matching HowToPlayContent.tsx display
     // Master: ≥14, Diamond: ≥11, Platinum: ≥7, Gold: ≥4, Silver: ≥1, Bronze: <1
     if (finalScore >= 14 && accuracy >= MIN_ACCURACY_GRANDMASTER) {
-      rank = "Grandmaster of Speed 👑";
+      rank = "Master: Grandmaster Blockbreaker";
     } else if (finalScore >= 11 && accuracy >= MIN_ACCURACY_TURBO) {
-      rank = "Turbo Typelord 💎";
+      rank = "Diamond: Turbo Typelord";
     } else if (finalScore >= 7 && accuracy >= MIN_ACCURACY_CHAIN) {
-      rank = "Chain Slayer ⚔️";
+      rank = "Platinum: Chain Slayer";
     } else if (finalScore >= 4 && accuracy >= MIN_ACCURACY_SPEED) {
-      rank = "Speed Operator 🥇";
+      rank = "Gold: Speed Operator";
     } else if (finalScore >= 1 && accuracy >= MIN_ACCURACY_LATENCY) {
-      rank = "Latency Warrior 🥈";
+      rank = "Silver: Latency Warrior";
     } else {
-      rank = "Typing Rookie 🥉";
+      rank = "Bronze: Block Rookie";
     }
 
     const resultsData = {
@@ -2030,9 +2030,9 @@ https://proofofspeed.vercel.app/`;
                   >
                     {getRankName(results.rank)}
                   </div>
-                  {RANK_DESCRIPTIONS[results.rank] && (
+                  {RANK_DESCRIPTIONS[getRankName(results.rank)] && (
                     <div className="text-sm text-dark-dim font-mono max-w-md">
-                      {RANK_DESCRIPTIONS[results.rank]}
+                      {RANK_DESCRIPTIONS[getRankName(results.rank)]}
                     </div>
                   )}
                 </div>
