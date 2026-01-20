@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Roboto_Mono, Racing_Sans_One, Sedgwick_Ave_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // Setup font variables
@@ -44,6 +45,7 @@ export default function RootLayout({
       {/* Apply the font variables to the body */}
       <body className={`${inter.variable} ${robotoMono.variable} ${racingSansOne.variable} ${sedgwickAveDisplay.variable} font-sans`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
