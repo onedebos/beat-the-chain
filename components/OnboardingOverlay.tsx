@@ -163,10 +163,10 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
         className="w-full max-w-5xl rounded-lg bg-dark-kbd p-8 shadow-2xl border border-dark-dim/20 mx-4 overflow-hidden max-h-[90vh]"
       >
         {/* Fixed height container for seamless transitions */}
-        <div className="relative h-[600px] overflow-hidden max-h-full">
+        <div className="relative h-[600px] overflow-y-auto max-h-full">
           <ResizableRoot value={step.toString()}>
             <ResizableContent value="1">
-              <div className="pb-5">
+              <div className="pb-20">
               <WelcomeToProofOfSpeed />
 
               <div className="mt-4 mb-4 flex justify-between">
@@ -182,10 +182,9 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                 </button>
                 <button
                   onClick={handleNext}
-                  className="rounded-full border border-dark-dim/30 py-2 px-4 text-sm font-bold text-black font-mono transition-transform hover:scale-[1.02] cursor-pointer flex items-center justify-center"
-                  style={{ backgroundColor: "#39ff9c" }}
+                  className="rounded-md px-4 py-2 text-sm font-bold text-dark-highlight hover:text-dark-highlight/80 font-mono transition-colors flex items-center gap-2"
                 >
-                  <span className="font-mono mr-6">Continue</span>
+                  <span className="font-mono">Continue</span>
                   <i className="fa-solid fa-arrow-right h-4 w-4" />
                 </button>
               </div>
