@@ -116,14 +116,23 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
     setStep(step - 1)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    // Validate player name (3-50 characters, alphanumeric, dots, hyphens, underscores only)
+    // Validate player name format
     const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (nameRegex.test(trimmedName)) {
-      onComplete(trimmedName);
+    if (!nameRegex.test(trimmedName)) {
+      return;
     }
+    
+    // Check for profanity client-side (for UX, server will also validate)
+    const { isNameValid } = await import("../../lib/name-validation");
+    const validation = isNameValid(trimmedName);
+    if (!validation.valid) {
+      return;
+    }
+    
+    onComplete(trimmedName);
   };
 
   const handleSignInWithTwitter = () => {
@@ -230,10 +239,15 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
                       <AnimatePresence>
                         {(() => {
                           const trimmed = name.trim();
-                          const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
-                          const hasError = trimmed && !nameRegex.test(trimmed);
+                          if (!trimmed) return null;
                           
-                          return hasError ? (
+                          // Validate synchronously for format, async for profanity
+                          const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
+                          const formatError = !nameRegex.test(trimmed);
+                          
+                          // For profanity check, we'll validate on submit (async)
+                          // Format error shows immediately for better UX
+                          return formatError ? (
                             <motion.p
                               initial={{ opacity: 0, y: -10 }}
                               animate={{ opacity: 1, y: 0 }}
