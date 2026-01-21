@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate rank (must be one of the allowed ranks)
     if (!body.rank || !ALLOWED_RANKS.includes(body.rank)) {
       return NextResponse.json(
         { success: false, error: "Invalid rank" },
