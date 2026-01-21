@@ -116,23 +116,14 @@ export default function OnboardingOverlay({ onComplete, onSignInWithTwitter }: O
     setStep(step - 1)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    // Validate player name format
+    // Validate player name format (server will also validate profanity)
     const nameRegex = /^[a-zA-Z0-9._-]{3,50}$/;
-    if (!nameRegex.test(trimmedName)) {
-      return;
+    if (nameRegex.test(trimmedName)) {
+      onComplete(trimmedName);
     }
-    
-    // Check for profanity client-side (for UX, server will also validate)
-    const { isNameValid } = await import("../../lib/name-validation");
-    const validation = isNameValid(trimmedName);
-    if (!validation.valid) {
-      return;
-    }
-    
-    onComplete(trimmedName);
   };
 
   const handleSignInWithTwitter = () => {
